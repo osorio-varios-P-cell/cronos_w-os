@@ -208,6 +208,9 @@ pub struct DesktopEnvironment {
     start_menu: StartMenu,
     screen_width: u32,
     screen_height: u32,
+    /// FASE 16: Controles de hardware (Brillo, Volumen)
+    pub system_volume: u8,
+    pub screen_brightness: u8,
 }
 
 impl DesktopEnvironment {
@@ -220,6 +223,8 @@ impl DesktopEnvironment {
             start_menu,
             screen_width,
             screen_height,
+            system_volume: 75,
+            screen_brightness: 80,
         }
     }
 

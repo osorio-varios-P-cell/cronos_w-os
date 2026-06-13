@@ -272,6 +272,26 @@ impl CronosPowerManager {
         elapsed >= self.screen_timeout as u64
     }
 
+    /// FASE 16: Gobernador de energía dinámico (Deep Reasoning)
+    pub fn update_governor(&mut self) -> PowerAction {
+        if self.thermal_info.is_critical_temperature() {
+            return PowerAction::EmergencyShutdown;
+        }
+
+        if self.thermal_info.is_overheating() {
+            self.policy = PowerPolicy::PowerSaver;
+            return PowerAction::ThrottleCpu;
+        }
+
+        if self.battery_info.is_low_battery() {
+            self.policy = PowerPolicy::PowerSaver;
+        } else if !self.thermal_info.is_overheating() {
+            self.policy = PowerPolicy::Performance;
+        }
+
+        PowerAction::None
+    }
+
     pub fn handle_power_event(&mut self, event: PowerEvent) -> PowerAction {
         match event.event_type {
             PowerEventType::PowerButtonPress => {

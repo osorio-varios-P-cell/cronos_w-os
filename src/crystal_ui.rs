@@ -254,10 +254,39 @@ impl TerminalContent {
     }
 }
 
+/// FASE 16: Notificación del sistema
+#[derive(Debug, Clone)]
+pub struct Notification {
+    pub title: String,
+    pub message: String,
+    pub timestamp: u64,
+}
+
+/// FASE 16: Centro de Notificaciones
+pub struct NotificationCenter {
+    pub notifications: Vec<Notification>,
+}
+
+impl NotificationCenter {
+    pub fn new() -> Self {
+        Self { notifications: Vec::new() }
+    }
+
+    pub fn push(&mut self, title: &str, message: &str) {
+        self.notifications.push(Notification {
+            title: String::from(title),
+            message: String::from(message),
+            timestamp: 0,
+        });
+    }
+}
+
 /// Crystal UI - Interfaz gráfica extendida
 pub struct CrystalUI {
     /// Entorno de escritorio base
     pub desktop: DesktopEnvironment,
+    /// FASE 16: Centro de notificaciones nativo
+    pub notification_center: NotificationCenter,
     /// Aplicación activa
     pub active_application: Option<ApplicationType>,
     /// Contenido del navegador web
@@ -272,6 +301,7 @@ impl CrystalUI {
     pub fn new(screen_width: u32, screen_height: u32) -> Self {
         Self {
             desktop: DesktopEnvironment::new(screen_width, screen_height),
+            notification_center: NotificationCenter::new(),
             active_application: None,
             web_browser: None,
             file_manager: None,

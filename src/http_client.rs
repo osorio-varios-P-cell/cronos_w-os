@@ -198,7 +198,7 @@ pub struct HttpClient {
     pub capability_id: Option<CapabilityId>,
     /// Nodo en el graph kernel
     pub graph_node_id: Option<NodeId>,
-    /// User-Agent
+    /// User-Agent (Soberanía Web - Perfilado dinámico)
     pub user_agent: String,
     /// Habilitar HTTPS
     pub enable_https: bool,
@@ -243,10 +243,20 @@ impl HttpClient {
             state: HttpClientState::Uninitialized,
             capability_id: None,
             graph_node_id: None,
-            user_agent: String::from("CRONOS-W-OS/1.0 HiveAI"),
+            user_agent: String::from("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"), // Perfil Chrome Legítimo
             enable_https: true,
             metrics: HttpClientMetrics::default(),
         }
+    }
+
+    /// FASE 16: Establecer perfil de User-Agent para evitar bloqueos (Google/YouTube/Bancos)
+    pub fn set_legitimate_profile(&mut self, profile: &str) {
+        self.user_agent = match profile {
+            "chrome" => String::from("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"),
+            "safari" => String::from("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"),
+            "firefox" => String::from("Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0"),
+            _ => String::from("CRONOS-Sovereign-Browser/2.1"),
+        };
     }
 
     /// Inicializar el cliente en el graph kernel

@@ -152,6 +152,8 @@ pub struct VirtualMachine {
     pub qemu_pid: Option<u32>,
     /// Uso de recursos
     pub resource_usage: VmResourceUsage,
+    /// FASE 16: Portapapeles compartido (Host <-> Guest)
+    pub guest_clipboard: String,
 }
 
 /// Uso de recursos de la VM
@@ -186,7 +188,14 @@ impl VirtualMachine {
             capability: None,
             qemu_pid: None,
             resource_usage: VmResourceUsage::default(),
+            guest_clipboard: String::new(),
         }
+    }
+
+    /// Sincronizar portapapeles con el sistema anfitrión
+    pub fn sync_clipboard(&mut self, host_clipboard: &str) {
+        self.guest_clipboard = String::from(host_clipboard);
+        // En un sistema real, esto se enviaría vía guest-agent
     }
 
     /// Configurar EPT (Extended Page Tables) en el grafo de recursos
