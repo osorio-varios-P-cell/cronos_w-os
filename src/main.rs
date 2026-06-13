@@ -138,6 +138,7 @@ mod pdf_generation;
 mod auto_evolution;
 mod linux_vm;
 mod windows_vm;
+mod macos_vm;
 mod android_avd;
 mod vm_program_installer;
 mod layer_robustness;

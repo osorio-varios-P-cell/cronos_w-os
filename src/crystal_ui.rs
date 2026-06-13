@@ -26,6 +26,8 @@ pub enum ApplicationType {
     ColmenaChat,
     /// Aplicación Virtualizada (Modo Fluido)
     VirtualApp(String),
+    /// Instalador GENESIS
+    Installer,
 }
 
 /// Estado de carga
@@ -241,6 +243,7 @@ impl CrystalUI {
             ApplicationType::Settings => "Configuración",
             ApplicationType::ColmenaChat => "Chat IA Colmena",
             ApplicationType::VirtualApp(ref name) => name,
+            ApplicationType::Installer => "Instalador GENESIS",
         };
         self.desktop.taskbar_mut().add_item(0, app_name);
 
@@ -258,10 +261,15 @@ impl CrystalUI {
                 // Configuración pendiente de implementación
             }
             ApplicationType::ColmenaChat => {
-                // Chat con IA Colmena pendiente de implementación
+                // FASE 16: Interacción directa con Hive AI
+                let welcome_msg = "Bienvenido al terminal soberano de Hive AI. ¿En qué puedo ayudarte hoy?";
+                self.terminal = Some(TerminalContent::new()); // Reutilizar estructura de terminal para el chat
             }
             ApplicationType::VirtualApp(_) => {
                 // Aplicación virtualizada ya gestionada por el compositor
+            }
+            ApplicationType::Installer => {
+                // Lógica de visualización del instalador con progreso
             }
         }
     }
