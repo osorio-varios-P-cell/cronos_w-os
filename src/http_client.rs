@@ -173,6 +173,16 @@ impl HttpRequestConfig {
     }
 }
 
+/// FASE 16: Cookie para persistencia de sesión
+#[derive(Debug, Clone)]
+pub struct Cookie {
+    pub name: String,
+    pub value: String,
+    pub domain: String,
+    pub path: String,
+    pub expires: u64,
+}
+
 /// Respuesta HTTP
 #[derive(Debug, Clone)]
 pub struct HttpResponse {
@@ -186,12 +196,16 @@ pub struct HttpResponse {
     pub body: Vec<u8>,
     /// Tiempo de respuesta (ms)
     pub response_time_ms: u64,
+    /// FASE 16: Cookies recibidas en la respuesta
+    pub cookies: Vec<Cookie>,
 }
 
 /// Cliente HTTP/HTTPS
 pub struct HttpClient {
     /// ID único del cliente
     pub client_id: u64,
+    /// FASE 16: Almacén de cookies para soberanía web (Gmail/Bancos)
+    pub cookie_jar: BTreeMap<String, Vec<Cookie>>,
     /// Estado actual
     pub state: HttpClientState,
     /// Capability de este cliente
@@ -240,6 +254,7 @@ impl HttpClient {
     pub fn new(client_id: u64) -> Self {
         Self {
             client_id,
+            cookie_jar: BTreeMap::new(),
             state: HttpClientState::Uninitialized,
             capability_id: None,
             graph_node_id: None,
@@ -307,6 +322,7 @@ impl HttpClient {
             },
             body: Vec::new(),
             response_time_ms: 500,
+            cookies: Vec::new(),
         };
 
         self.metrics.requests_sent += 1;

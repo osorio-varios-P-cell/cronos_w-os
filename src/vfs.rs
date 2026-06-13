@@ -25,6 +25,8 @@ pub enum FileType {
     Socket,
     /// Enlace simbólico
     Symlink,
+    /// FASE 16: Partición Externa (NTFS/APFS)
+    ExternalPartition,
 }
 
 /// Permisos de archivo
@@ -246,6 +248,20 @@ impl VfsSystem {
             mounts: Vec::new(),
             next_fs_id: 1,
         }
+    }
+
+    /// FASE 16: Auto-detección y montaje de particiones de otros OS
+    pub fn auto_mount_external(&mut self) -> Result<u32, String> {
+        let mut count = 0;
+        // 1. Escanear tablas de particiones (GPT/MBR)
+        // 2. Identificar GUIDs de NTFS (Windows) y APFS (Apple)
+        // 3. Crear montajes en /mnt/windows y /mnt/macos
+
+        // Simulación de montaje de disco Windows real
+        let sb_win = VfsSuperblock::new(10, String::from("Windows-SSD"), 500 * 1024 * 1024 * 1024);
+        self.mount(String::from("/mnt/windows"), sb_win, 1).map(|_| { count += 1 });
+
+        Ok(count)
     }
 
     /// Montar filesystem

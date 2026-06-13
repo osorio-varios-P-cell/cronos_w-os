@@ -568,6 +568,20 @@ pub unsafe fn pci_write_config_u8(address: PciConfigAddress, value: u8) {
     );
 }
 
+/// FASE 16: Notificación de evento PnP
+#[derive(Debug, Clone)]
+pub struct PnpEvent {
+    pub device: PciDevice,
+    pub action: PnpAction,
+    pub timestamp: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PnpAction {
+    Arrival,
+    Removal,
+}
+
 /// Enumera todos los dispositivos PCI en el sistema
 pub fn enumerate_pci_devices() -> alloc::vec::Vec<PciDevice> {
     let mut devices = alloc::vec::Vec::new();
@@ -621,6 +635,8 @@ pub fn init_pci() {
 pub struct IrqManager {
     /// IRQs asignadas (0-15 para IRQs legadas, 32+ para APIC)
     assigned_irqs: [bool; 256],
+    /// FASE 16: Cola de eventos PnP para dispositivos en caliente
+    pub pnp_events: alloc::vec::Vec<PnpEvent>,
 }
 
 impl IrqManager {
@@ -628,7 +644,26 @@ impl IrqManager {
     pub const fn new() -> Self {
         Self {
             assigned_irqs: [false; 256],
+            pnp_events: alloc::vec::Vec::new(),
         }
+    }
+
+    /// Registrar llegada de hardware en caliente
+    pub fn register_arrival(&mut self, device: PciDevice) {
+        self.pnp_events.push(PnpEvent {
+            device,
+            action: PnpAction::Arrival,
+            timestamp: 0,
+        });
+    }
+
+    /// Registrar remoción de hardware
+    pub fn register_removal(&mut self, device: PciDevice) {
+        self.pnp_events.push(PnpEvent {
+            device,
+            action: PnpAction::Removal,
+            timestamp: 0,
+        });
     }
 
     /// Asigna una IRQ para un dispositivo PCI
