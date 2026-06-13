@@ -264,6 +264,15 @@ impl HttpClient {
         }
     }
 
+    /// FASE 16: Autocompletar formulario (Cyber-Autonomy)
+    pub fn autofill_form(&mut self, fields: BTreeMap<String, String>) -> Result<(), String> {
+        // En un sistema real, inyectaría estos valores en el DOM de la página cargada
+        for (field, _value) in fields {
+            crate::serial_println!("🤖 Hive AI: Autocompletando campo '{}'...", field);
+        }
+        Ok(())
+    }
+
     /// FASE 16: Establecer perfil de User-Agent para evitar bloqueos (Google/YouTube/Bancos)
     pub fn set_legitimate_profile(&mut self, profile: &str) {
         self.user_agent = match profile {

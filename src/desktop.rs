@@ -202,6 +202,15 @@ impl Default for StartMenu {
     }
 }
 
+/// FASE 16: Tipo de Fondo de Escritorio
+#[derive(Debug, Clone, PartialEq)]
+pub enum WallpaperType {
+    SolidColor(u32),
+    Image(String),
+    Video(String),
+    AIGenerated(String),
+}
+
 /// Entorno de escritorio
 pub struct DesktopEnvironment {
     taskbar: Taskbar,
@@ -211,6 +220,8 @@ pub struct DesktopEnvironment {
     /// FASE 16: Controles de hardware (Brillo, Volumen)
     pub system_volume: u8,
     pub screen_brightness: u8,
+    /// FASE 16: Gestión estética del fondo
+    pub wallpaper: WallpaperType,
 }
 
 impl DesktopEnvironment {
@@ -225,7 +236,14 @@ impl DesktopEnvironment {
             screen_height,
             system_volume: 75,
             screen_brightness: 80,
+            wallpaper: WallpaperType::SolidColor(0xFF1E1E2E), // Gris Soberano por defecto
         }
+    }
+
+    /// Establecer un nuevo fondo de escritorio
+    pub fn set_wallpaper(&mut self, wallpaper: WallpaperType) {
+        self.wallpaper = wallpaper;
+        // En un sistema real, esto redibujaría la capa 0 del compositor
     }
 
     pub fn taskbar(&self) -> &Taskbar {

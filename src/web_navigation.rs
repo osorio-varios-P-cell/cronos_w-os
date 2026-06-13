@@ -59,6 +59,16 @@ pub struct WebPage {
     pub meta_tags: BTreeMap<String, String>,
     /// Tiempo de carga (ms)
     pub load_time_ms: u64,
+    /// FASE 16: Media detectada en la página (YouTube/Video streams)
+    pub detected_media: Vec<MediaStream>,
+}
+
+#[derive(Debug, Clone)]
+pub struct MediaStream {
+    pub url: String,
+    pub format: String,
+    pub resolution: String,
+    pub is_downloadable: bool,
 }
 
 /// Sesión de navegación
@@ -120,13 +130,13 @@ impl NavigationSession {
         }
     }
 
-    /// Navegar a una URL
+    /// Navegar a una URL con detección de Media (Media Sniffer)
     pub fn navigate_to(&mut self, url: String) -> Result<(), String> {
         self.status = NavigationStatus::InProgress;
 
         // En un sistema real, esto usaría el cliente HTTP para obtener la página
         // Por ahora, simulamos la navegación
-        let page = WebPage {
+        let mut page = WebPage {
             url: url.clone(),
             title: format!("Página: {}", url),
             html_content: String::from("<html><body>Contenido simulado</body></html>"),
@@ -135,7 +145,18 @@ impl NavigationSession {
             images: Vec::new(),
             meta_tags: BTreeMap::new(),
             load_time_ms: 500,
+            detected_media: Vec::new(),
         };
+
+        // FASE 16: Lógica de Sniffer para YouTube y otros
+        if url.contains("youtube.com") || url.contains("vimeo.com") {
+            page.detected_media.push(MediaStream {
+                url: format!("{}/stream_hd.mp4", url),
+                format: String::from("mp4"),
+                resolution: String::from("1080p"),
+                is_downloadable: true,
+            });
+        }
 
         self.history.push(url.clone());
         self.history_index = self.history.len() - 1;

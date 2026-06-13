@@ -25,6 +25,8 @@ pub enum WindowType {
     Menu,
     Tooltip,
     Splash,
+    /// FASE 16: HUD / Overlay de Hive AI (Pequeña ventana superpuesta)
+    Overlay,
 }
 
 /// Atributos de ventana
@@ -139,6 +141,15 @@ impl Window {
             WindowType::Menu => WindowAttributes::default_menu(),
             WindowType::Tooltip => WindowAttributes::default_menu(),
             WindowType::Splash => WindowAttributes::default_menu(),
+            WindowType::Overlay => WindowAttributes {
+                title_bar: false,
+                close_button: false,
+                minimize_button: false,
+                maximize_button: false,
+                resizable: false,
+                movable: true,
+                always_on_top: true,
+            },
         };
 
         Self {

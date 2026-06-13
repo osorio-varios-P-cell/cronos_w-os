@@ -36,6 +36,11 @@ pub enum ApplicationType {
     Settings,
     /// IA Colmena
     ColmenaChat,
+    /// FASE 16: HUD de Hive AI (Análisis de contexto)
+    HiveHUD {
+        active_analysis: String,
+        suggested_actions: Vec<String>,
+    },
     /// Instalador GENESIS
     Installer {
         step: InstallerStep,
@@ -334,6 +339,9 @@ impl CrystalUI {
             }
             ApplicationType::Installer { .. } => {
                 self.desktop.taskbar_mut().add_item(5, "Instalador GENESIS");
+            }
+            ApplicationType::HiveHUD { .. } => {
+                self.desktop.taskbar_mut().add_item(6, "Hive HUD Analysis");
             }
         }
     }
