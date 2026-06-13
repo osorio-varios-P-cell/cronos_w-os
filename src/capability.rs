@@ -370,6 +370,34 @@ impl CapabilityTable {
         }
     }
 
+    /// Delegate a capability creating a child relationship (seL4-style)
+    pub fn delegate<T>(&mut self, parent_id: CapabilityId, child_rights: CapabilityRights, owner: u64) -> Option<CapabilityId> {
+        if let Some(parent_info) = self.capabilities.get(&parent_id) {
+            // Child cannot have more rights than parent
+            let restricted_rights = parent_info.rights.restrict(child_rights);
+            let child_id = CapabilityId::new();
+
+            let child_info = CapabilityInfo {
+                rights: restricted_rights,
+                resource_type: parent_info.resource_type.clone(),
+                owner,
+                parent: Some(parent_id),
+                children: Vec::new(),
+            };
+
+            self.capabilities.insert(child_id, child_info);
+
+            // Re-fetch parent to add child to its list
+            if let Some(parent_info_mut) = self.capabilities.get_mut(&parent_id) {
+                parent_info_mut.children.push(child_id);
+            }
+
+            Some(child_id)
+        } else {
+            None
+        }
+    }
+
     /// Get all capabilities owned by a specific owner
     pub fn get_owner_capabilities(&self, owner: u64) -> Vec<CapabilityId> {
         self.capabilities

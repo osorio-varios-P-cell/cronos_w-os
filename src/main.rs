@@ -206,10 +206,21 @@ pub extern "C" fn kernel_main(_boot_info: &BootInfo) -> ! {
         if let Some(gk) = graph_kernel {
             scanner.register_in_graph(&gk);
 
-            // Registrar ACPI en el grafo
+            // Registrar ACPI y habilitar SMP (Multinúcleo)
             if acpi_status.is_ok() {
                 acpi_manager.set_graph_kernel(gk.clone());
                 let _ = acpi_manager.enumerate_acpi_devices();
+
+                if let Some(madt) = &acpi_manager.madt {
+                    let core_count = madt.processor_count();
+                    let msg = format!("SOPORTE MULTINUCLEO DETECTADO: {} CORES", core_count);
+                    for (i, byte) in msg.as_bytes().iter().enumerate() {
+                        unsafe {
+                            *vga_buffer.offset((i + 320) as isize * 2) = *byte;
+                            *vga_buffer.offset((i + 320) as isize * 2 + 1) = 0x0d; // Light Magenta
+                        }
+                    }
+                }
             }
 
             // FASE 2: Inicializar NVMe y xHCI con direcciones reales del scanner PCI
@@ -234,6 +245,13 @@ pub extern "C" fn kernel_main(_boot_info: &BootInfo) -> ! {
                     }
                 }
             }
+
+            // FASE 2.5: Virtualización y Contenedores en el Grafo
+            let hv_node = gk.create_node(
+                graph_kernel::NodeType::VirtualizationResource,
+                String::from("hypervisor_root"),
+            );
+            gk.create_edge(gk.root_node().unwrap(), hv_node, graph_kernel::EdgeType::Ownership);
 
             // FASE 5: IA Colmena
             if let Some(arch) = layer_arch {

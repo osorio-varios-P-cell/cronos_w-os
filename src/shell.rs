@@ -63,9 +63,12 @@ impl SovereignShell {
             "sysinfo" => {
                 serial_println!("System Information:");
                 serial_println!("  OS Name: CRONOS W-OS");
-                serial_println!("  Edition: Sovereign (Soberana)");
+                serial_println!("  Edition: Sovereign (Soberana) v2.0-Mature");
                 serial_println!("  Kernel Type: Exokernel with Resource Graphs");
-                serial_println!("  Architecture: x86_64 Sovereign Implementation");
+                serial_println!("  Security: AEGIS (Cascade Revocation active)");
+                serial_println!("  UI: LUMEN Compositor (3-Layer Optimized)");
+                serial_println!("  AI: Colmena IA (Telemetry active)");
+                serial_println!("  Architecture: x86_64 SMP Ready");
             }
             _ => {
                 serial_println!("Unknown command: {}", cmd);

@@ -9,7 +9,7 @@ use crate::capability::{Capability, Cell, CapabilityRights, invoke_capability_mu
 use crate::drivers::RedoxGpuDriver;
 use crate::hal::{GpuDevice, Device, GpuContext, GpuCommand};
 use alloc::collections::BTreeMap;
-use alloc::{string::String, format};
+use alloc::{string::String, format, vec};
 use alloc::vec::Vec;
 use core::sync::atomic::{AtomicU64, Ordering};
 use core::ops::Range;
@@ -155,12 +155,22 @@ impl Window {
     }
 }
 
+/// Compositor Layer for performance optimization
+#[derive(Debug, Clone)]
+pub struct CompositorLayer {
+    pub id: u32,
+    pub name: String,
+    pub active: bool,
+    pub alpha: f32,
+}
+
 /// Compositor - manages windows as graph nodes
 pub struct Compositor {
     graph_kernel: GraphKernel,
     compositor_node: Option<NodeId>,
     gpu_capability: Option<Capability<RedoxGpuDriver>>,
     windows: BTreeMap<WindowId, Window>,
+    layers: Vec<CompositorLayer>,
     focused_window: Option<WindowId>,
     next_z_order: u32,
     screen_width: u32,
@@ -174,6 +184,11 @@ impl Compositor {
             compositor_node: None,
             gpu_capability: None,
             windows: BTreeMap::new(),
+            layers: vec![
+                CompositorLayer { id: 0, name: String::from("Background"), active: true, alpha: 1.0 },
+                CompositorLayer { id: 1, name: String::from("Applications"), active: true, alpha: 1.0 },
+                CompositorLayer { id: 2, name: String::from("Overlay"), active: true, alpha: 1.0 },
+            ],
             focused_window: None,
             next_z_order: 1,
             screen_width: 1920,
