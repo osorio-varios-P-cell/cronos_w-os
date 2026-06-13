@@ -5,7 +5,7 @@
 extern crate alloc;
 
 use core::panic::PanicInfo;
-use alloc::string::String;
+use alloc::{string::String, format};
 use crate::serial_writer::serial_panic;
 use crate::boot::BootInfo;
 
@@ -179,46 +179,66 @@ pub extern "C" fn kernel_main(boot_info: &BootInfo) -> ! {
         }
         
         // Write boot message
-        let boot_msg = b"CRONOS W-OS v2.0 - Exokernel with Capabilities";
+        let boot_msg = b"CRONOS W-OS v2.0 - SO SOBERANO (Exokernel + Grafos)";
         for (i, &byte) in boot_msg.iter().enumerate() {
             *vga_buffer.offset(i as isize * 2) = byte;
-            *vga_buffer.offset(i as isize * 2 + 1) = 0x0f;
+            *vga_buffer.offset(i as isize * 2 + 1) = 0x0b; // Cyan
         }
-        
-        // Initialize the system
-        let status = initialize_system(vga_buffer);
-        
+    }
+
+    // Inicializar GDT e IDT
+    gdt::init_gdt();
+    interrupts::init_idt();
+    unsafe { interrupts::init_pics() };
+    x86_64::instructions::interrupts::enable();
+
+    // Inicializar hardware real
+    let mut scanner = hardware::HardwareScanner::new();
+    let pci_devices = scanner.scan_pci_bus();
+
+    // Initialize the system architecture
+    let (status, graph_kernel) = initialize_system_with_graph(vga_buffer);
+
+    if status {
+        if let Some(gk) = graph_kernel {
+            scanner.register_in_graph(&gk);
+
+            // FASE 15: Registrar memoria en el grafo
+            // Obtener el MemoryManager (esto es una simplificación, en un sistema real
+            // el MemoryManager debería estar disponible globalmente o pasado como parámetro)
+            // Por ahora, como el MemoryManager se inicializa dentro de allocator o similar,
+            // asumimos que las regiones están disponibles.
+
+            // Iniciar Shell Soberana
+            let shell = shell::SovereignShell::new(gk.clone());
+            shell.run();
+        }
+    }
+
+    unsafe {
         // Write status
         let status_msg = if status {
-            b"System initialized successfully - Capabilities active"
+            b"SISTEMA INICIALIZADO - CAPABILITIES Y GRAFOS ACTIVOS"
         } else {
-            b"System initialization failed - Capabilities inactive "
+            b"ERROR EN INICIALIZACION DE ARQUITECTURA CRONOS      "
         };
         
         for (i, &byte) in status_msg.iter().enumerate() {
             *vga_buffer.offset((i + 80) as isize * 2) = byte;
-            *vga_buffer.offset((i + 80) as isize * 2 + 1) = 0x0f;
+            *vga_buffer.offset((i + 80) as isize * 2 + 1) = if status { 0x0a } else { 0x0c }; // Green or Red
         }
         
         // Write architecture info
-        let arch_msg = b"4-Layer: AEGIS, LUMEN, GENESIS, Kernel - Hive AI Bridge";
+        let arch_msg = b"CAPAS: [KERNEL] -> [AEGIS] -> [LUMEN] -> [GENESIS]";
         for (i, &byte) in arch_msg.iter().enumerate() {
             *vga_buffer.offset((i + 160) as isize * 2) = byte;
-            *vga_buffer.offset((i + 160) as isize * 2 + 1) = 0x0f;
+            *vga_buffer.offset((i + 160) as isize * 2 + 1) = 0x0e; // Yellow
         }
         
-        // Write driver info
-        let driver_msg = b"Drivers: GPU, NVMe, xHCI, WiFi, Audio, Net (Redox ports)";
-        for (i, &byte) in driver_msg.iter().enumerate() {
-            *vga_buffer.offset((i + 240) as isize * 2) = byte;
-            *vga_buffer.offset((i + 240) as isize * 2 + 1) = 0x0f;
-        }
-        
-        // Write compositor info
-        let comp_msg = b"Compositor: GraphNode windows + GPU capability - No syscalls";
-        for (i, &byte) in comp_msg.iter().enumerate() {
-            *vga_buffer.offset((i + 320) as isize * 2) = byte;
-            *vga_buffer.offset((i + 320) as isize * 2 + 1) = 0x0f;
+        let dev_count_msg = format!("DISPOSITIVOS PCI DETECTADOS: {}", pci_devices.len());
+        for (i, byte) in dev_count_msg.as_bytes().iter().enumerate() {
+            *vga_buffer.offset((i + 240) as isize * 2) = *byte;
+            *vga_buffer.offset((i + 240) as isize * 2 + 1) = 0x07; // Light Gray
         }
     }
     
@@ -226,6 +246,10 @@ pub extern "C" fn kernel_main(boot_info: &BootInfo) -> ! {
 }
 
 fn initialize_system(vga_buffer: *mut u8) -> bool {
+    initialize_system_with_graph(vga_buffer).0
+}
+
+fn initialize_system_with_graph(vga_buffer: *mut u8) -> (bool, Option<GraphKernel>) {
     // Simplified initialization for no_std environment
     // The full architecture is implemented in the modules
     
@@ -233,6 +257,8 @@ fn initialize_system(vga_buffer: *mut u8) -> bool {
     let mut graph_kernel = GraphKernel::new();
     graph_kernel.initialize();
     
+    let gk_return = graph_kernel.clone();
+
     // Step 2: Initialize 4-Layer Architecture
     let mut layer_architecture = LayerArchitecture::new(graph_kernel);
     layer_architecture.initialize();
@@ -261,10 +287,10 @@ fn initialize_system(vga_buffer: *mut u8) -> bool {
     genesis_layer.initialize();
     
     // Step 8: Initialize Hive AI as bridge capability between all layers
-    let mut hive_ai = HiveAi::new(layer_architecture);
+    let hive_ai = HiveAi::new(layer_architecture);
     hive_ai.initialize();
     
-    true
+    (true, Some(gk_return))
 }
 
 // Helper function to invoke capability mut

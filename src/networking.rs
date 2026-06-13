@@ -119,6 +119,17 @@ pub struct NetworkConfig {
     pub enable_dhcp: bool,
     /// Timeout de conexión (ms)
     pub connection_timeout_ms: u32,
+    /// Modo de compatibilidad
+    pub compatibility_mode: CompatibilityMode,
+}
+
+/// Modo de compatibilidad de red
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CompatibilityMode {
+    Native,
+    Legacy,
+    Safe,
+    Experimental,
 }
 
 impl Default for NetworkConfig {
@@ -129,6 +140,7 @@ impl Default for NetworkConfig {
             secondary_dns: String::from("8.8.4.4"),
             enable_dhcp: true,
             connection_timeout_ms: 5000,
+            compatibility_mode: CompatibilityMode::Native,
         }
     }
 }
