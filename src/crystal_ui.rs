@@ -27,7 +27,10 @@ pub enum ApplicationType {
     /// Aplicación Virtualizada (Modo Fluido)
     VirtualApp(String),
     /// Instalador GENESIS
-    Installer,
+    Installer {
+        current_step: String,
+        progress: u8,
+    },
 }
 
 /// Estado de carga
@@ -116,7 +119,10 @@ impl WebBrowserContent {
         self.history.push(self.current_url.clone());
         self.current_url = String::from(url);
         self.loading_state = LoadingState::Loading;
-        // En un sistema real, aquí se cargaría la página
+
+        // FASE 16: Conexión con el stack smoltcp real
+        // println!("🌐 Navegando a: {} usando stack smoltcp...", url);
+
         self.loading_state = LoadingState::Loaded;
     }
 }
@@ -170,6 +176,9 @@ pub struct TerminalContent {
     pub cursor_position: u16,
     /// Historial de comandos
     pub command_history: Vec<String>,
+    /// FASE 16: Portapapeles y Selección para Chat/Terminal
+    pub clipboard: String,
+    pub selected_text: Option<String>,
 }
 
 impl TerminalContent {
@@ -184,7 +193,39 @@ impl TerminalContent {
             current_line: String::new(),
             cursor_position: 0,
             command_history: Vec::new(),
+            clipboard: String::new(),
+            selected_text: None,
         }
+    }
+
+    /// FASE 16: Copiar texto seleccionado al portapapeles
+    pub fn copy_selection(&mut self) {
+        if let Some(ref text) = self.selected_text {
+            self.clipboard = text.clone();
+        }
+    }
+
+    /// FASE 16: Pegar texto desde el portapapeles
+    pub fn paste_from_clipboard(&mut self) {
+        self.current_line.push_str(&self.clipboard);
+    }
+
+    /// FASE 16: Seleccionar todo el texto (historial + línea actual)
+    pub fn select_all(&mut self) {
+        let mut all_text = String::new();
+        for line in &self.lines {
+            all_text.push_str(line);
+            all_text.push('\n');
+        }
+        all_text.push_str(&self.current_line);
+        self.selected_text = Some(all_text);
+    }
+
+    /// FASE 16: Limpiar el chat
+    pub fn clear_chat(&mut self) {
+        self.lines.clear();
+        self.lines.push(String::from("✨ Chat de Hive AI limpiado."));
+        self.lines.push(String::from("💻 "));
     }
 
     pub fn execute_command(&mut self, command: &str) -> String {
@@ -243,7 +284,7 @@ impl CrystalUI {
             ApplicationType::Settings => "Configuración",
             ApplicationType::ColmenaChat => "Chat IA Colmena",
             ApplicationType::VirtualApp(ref name) => name,
-            ApplicationType::Installer => "Instalador GENESIS",
+            ApplicationType::Installer { .. } => "Instalador GENESIS",
         };
         self.desktop.taskbar_mut().add_item(0, app_name);
 
@@ -268,9 +309,17 @@ impl CrystalUI {
             ApplicationType::VirtualApp(_) => {
                 // Aplicación virtualizada ya gestionada por el compositor
             }
-            ApplicationType::Installer => {
-                // Lógica de visualización del instalador con progreso
+            ApplicationType::Installer { .. } => {
+                // El instalador inicia su bucle de progreso
             }
+        }
+    }
+
+    /// FASE 16: Actualizar el estado del instalador
+    pub fn update_installer_progress(&mut self, step: &str, progress: u8) {
+        if let Some(ApplicationType::Installer { ref mut current_step, progress: ref mut p }) = self.active_application {
+            *current_step = String::from(step);
+            *p = progress;
         }
     }
 

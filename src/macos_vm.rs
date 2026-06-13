@@ -38,6 +38,12 @@ pub struct MacVmConfig {
     pub cpu_count: u32,
     pub memory_mb: u64,
     pub disk_path: String,
+    /// FASE 16: Aceleración Metal (Apple GPU)
+    pub enable_metal: bool,
+    /// FASE 16: USB Passthrough (para iPhone/iPad)
+    pub enable_usb_passthrough: bool,
+    /// FASE 16: Soporte de archivos .dmg
+    pub dmg_mount_path: Option<String>,
 }
 
 impl MacVmConfig {
@@ -49,7 +55,20 @@ impl MacVmConfig {
             cpu_count: 4,
             memory_mb: 8192,
             disk_path: format!("/vms/macos_{}.img", vm_id),
+            enable_metal: true,
+            enable_usb_passthrough: true,
+            dmg_mount_path: None,
         }
+    }
+
+    pub fn with_metal(mut self, enable: bool) -> Self {
+        self.enable_metal = enable;
+        self
+    }
+
+    pub fn with_usb_passthrough(mut self, enable: bool) -> Self {
+        self.enable_usb_passthrough = enable;
+        self
     }
 }
 
@@ -70,12 +89,27 @@ impl MacVm {
     }
 
     pub fn start(&mut self) -> Result<(), String> {
+        // En un sistema real, se usaría QEMU con patches de macOS (OpenCore)
+        // println!("🍎 Iniciando MacOS VM: {}", self.config.name);
+        // println!("🚀 Aceleración Metal: {}", self.config.enable_metal);
+        // println!("🔌 USB Passthrough: {}", self.config.enable_usb_passthrough);
+
         self.state = MacVmState::Running;
         Ok(())
     }
 
     pub fn stop(&mut self) -> Result<(), String> {
         self.state = MacVmState::Stopped;
+        Ok(())
+    }
+
+    /// FASE 16: Montar imagen de disco de Apple
+    pub fn mount_dmg(&mut self, path: String) -> Result<(), String> {
+        if self.state != MacVmState::Running {
+            return Err(String::from("VM debe estar en ejecución para montar DMG"));
+        }
+        self.config.dmg_mount_path = Some(path);
+        // println!("📂 Imagen DMG montada exitosamente");
         Ok(())
     }
 }
