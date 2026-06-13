@@ -115,6 +115,8 @@ pub struct NetworkConfig {
     pub primary_dns: String,
     /// DNS secundario
     pub secondary_dns: String,
+    /// FASE 13: Filtrado Soberano (Graph-based Firewall)
+    pub firewall_enabled: bool,
     /// Habilitar DHCP
     pub enable_dhcp: bool,
     /// Timeout de conexión (ms)
@@ -138,6 +140,7 @@ impl Default for NetworkConfig {
             gateway_ip: String::from("192.168.1.1"),
             primary_dns: String::from("8.8.8.8"),
             secondary_dns: String::from("8.8.4.4"),
+            firewall_enabled: true,
             enable_dhcp: true,
             connection_timeout_ms: 5000,
             compatibility_mode: CompatibilityMode::Native,

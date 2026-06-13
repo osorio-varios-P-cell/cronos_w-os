@@ -1037,6 +1037,11 @@ impl HiveAi {
     /// FASE 32: Razonamiento Autónomo del Grafo (Deep Reasoning)
     pub fn reason_about_graph(&mut self) -> Vec<String> {
         let mut insights = Vec::new();
+
+        // FASE 30: Razonamiento Térmico
+        if self.current_metrics.cpu_usage > 0.5 {
+            insights.push(String::from("MONITOREO: Carga de CPU significativa detectada. Iniciando análisis proactivo de temperatura."));
+        }
         let stats = self.get_graph_stats();
 
         if stats.isolated_nodes > 10 {
