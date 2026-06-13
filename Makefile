@@ -270,5 +270,4 @@ help:
 
 # Variables de entorno para desarrollo
 export RUST_TARGET_PATH = $(shell pwd)/target
-export RUSTFLAGS = $(RUSTFLAGS)
 export RUST_LOG = debug

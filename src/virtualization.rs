@@ -64,6 +64,8 @@ pub struct VmConfig {
     pub enable_usb: bool,
     /// Habilitar audio
     pub enable_audio: bool,
+    /// Habilitar modo fluido (Seamless Mode)
+    pub seamless_mode: bool,
 }
 
 impl VmConfig {
@@ -81,6 +83,7 @@ impl VmConfig {
             enable_network: true,
             enable_usb: true,
             enable_audio: true,
+            seamless_mode: false,
         }
     }
 
@@ -121,6 +124,11 @@ impl VmConfig {
 
     pub fn with_audio(mut self, enable: bool) -> Self {
         self.enable_audio = enable;
+        self
+    }
+
+    pub fn with_seamless_mode(mut self, enable: bool) -> Self {
+        self.seamless_mode = enable;
         self
     }
 }

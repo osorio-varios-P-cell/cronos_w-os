@@ -24,6 +24,8 @@ pub enum ApplicationType {
     Settings,
     /// IA Colmena
     ColmenaChat,
+    /// Aplicación Virtualizada (Modo Fluido)
+    VirtualApp(String),
 }
 
 /// Estado de carga
@@ -231,6 +233,17 @@ impl CrystalUI {
     pub fn open_application(&mut self, app_type: ApplicationType) {
         self.active_application = Some(app_type.clone());
         
+        // Registrar aplicación en la barra de tareas
+        let app_name = match app_type {
+            ApplicationType::WebBrowser => "Navegador Web",
+            ApplicationType::FileManager => "Gestor de Archivos",
+            ApplicationType::Terminal => "Terminal",
+            ApplicationType::Settings => "Configuración",
+            ApplicationType::ColmenaChat => "Chat IA Colmena",
+            ApplicationType::VirtualApp(ref name) => name,
+        };
+        self.desktop.taskbar_mut().add_item(0, app_name);
+
         match app_type {
             ApplicationType::WebBrowser => {
                 self.web_browser = Some(WebBrowserContent::new());
@@ -246,6 +259,9 @@ impl CrystalUI {
             }
             ApplicationType::ColmenaChat => {
                 // Chat con IA Colmena pendiente de implementación
+            }
+            ApplicationType::VirtualApp(_) => {
+                // Aplicación virtualizada ya gestionada por el compositor
             }
         }
     }

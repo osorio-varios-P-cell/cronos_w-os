@@ -93,6 +93,7 @@ pub enum WindowType {
     Menu,
     Tooltip,
     Dialog,
+    Virtual,
 }
 
 /// Window in the compositor
@@ -152,6 +153,10 @@ impl Window {
 
     pub fn set_z_order(&mut self, z_order: u32) {
         self.z_order = z_order;
+    }
+
+    pub fn set_type(&mut self, window_type: WindowType) {
+        self.window_type = window_type;
     }
 }
 
@@ -402,11 +407,16 @@ impl Compositor {
     /// Render a specific region of a window (Theseus-style optimization)
     fn render_window_region(&self, gpu_cap: &Capability<RedoxGpuDriver>, window: &Window, region: &Rect) {
         invoke_capability_mut(gpu_cap, |gpu| {
-            let color = if window.focused {
+            let mut color = if window.focused {
                 0xFF3B82F6 // Blue when focused
             } else {
                 0xFF6B7280 // Gray when unfocused
             };
+
+            // For virtual windows (Seamless Mode), we use transparency
+            if window.window_type == WindowType::Virtual {
+                color = (color & 0x00FFFFFF) | 0x80000000; // 50% transparency
+            }
 
             // Draw window background region
             let _ = gpu.execute_command(&GpuContext(0),
@@ -424,11 +434,16 @@ impl Compositor {
     fn render_window(&self, gpu_cap: &Capability<RedoxGpuDriver>, window: &Window) {
         invoke_capability_mut(gpu_cap, |gpu| {
             let rect = window.rect;
-            let color = if window.focused {
+            let mut color = if window.focused {
                 0xFF3B82F6 // Blue when focused
             } else {
                 0xFF6B7280 // Gray when unfocused
             };
+
+            // For virtual windows (Seamless Mode), we use transparency
+            if window.window_type == WindowType::Virtual {
+                color = (color & 0x00FFFFFF) | 0x80000000; // 50% transparency
+            }
 
             // Draw window background
             let _ = gpu.execute_command(&GpuContext(0),
@@ -442,11 +457,16 @@ impl Compositor {
 
             // Draw window title bar (darker)
             let title_bar_height = 24;
-            let title_color = if window.focused {
+            let mut title_color = if window.focused {
                 0xFF1E40AF // Darker blue
             } else {
                 0xFF4B5563 // Darker gray
             };
+
+            // Seamless windows might have integrated title bars or semi-transparent ones
+            if window.window_type == WindowType::Virtual {
+                title_color = (title_color & 0x00FFFFFF) | 0x99000000; // ~60% transparency
+            }
 
             let _ = gpu.execute_command(&GpuContext(0),
                 GpuCommand::DrawRect {
