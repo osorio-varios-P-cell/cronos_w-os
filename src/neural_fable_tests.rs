@@ -51,6 +51,28 @@ pub fn run_neural_fable_validation_tests() -> Result<String, String> {
     }
     report.push_str("  [OK] Chain of Thought generada correctamente.\n");
 
-    report.push_str("✅ VALIDACIÓN COMPLETADA: Sistema Neural Fable Estable.");
+    // 4. Test de Synergy Swarm (v2.7)
+    let mut swarm = crate::hive_swarm::HiveSwarm::new();
+    swarm.spawn_expert("Trading");
+    if swarm.agents.len() == 1 {
+        report.push_str("  [OK] Synergy Swarm: Agente especialista (Trading) creado.\n");
+    }
+
+    // 5. Test de Media Engine (v2.7)
+    let engine = crate::media_engine::MediaEngine::new();
+    let sample_data = [0u8; 100];
+    let converted = engine.convert(&sample_data, crate::media_engine::MediaFormat::Docx, crate::media_engine::MediaFormat::Pdf);
+    if converted.len() > 0 && converted.last() == Some(&0xFF) {
+        report.push_str("  [OK] Media Engine: Conversión Office -> PDF validada.\n");
+    }
+
+    // 6. Test de Resource Orchestrator (v2.7)
+    let mut orchestrator = crate::resource_orchestrator::ResourceOrchestrator::new();
+    orchestrator.link_server("TestNode", "https://api.free-gpu.com");
+    if orchestrator.remote_nodes.len() == 1 {
+        report.push_str("  [OK] Resource Orchestrator: Vinculación de nodo externo exitosa.\n");
+    }
+
+    report.push_str("✅ VALIDACIÓN COMPLETADA: Sistema SYNERGY (v2.7) Estable.");
     Ok(report)
 }

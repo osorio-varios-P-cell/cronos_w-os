@@ -41,7 +41,7 @@ impl SovereignShell {
         match parts[0] {
             "help" => {
                 serial_println!("Comandos de Archivos: ls, cd, cat, pwd, mkdir, compress, convert, unlock");
-                serial_println!("Comandos Neurales: brain-init, dataview, fable, fable-test, multiverse, instruct, swarm, link-node");
+                serial_println!("Comandos Neurales: brain-init, dataview, fable, fable-test, multiverse, instruct, swarm, link-node, synergy-test");
                 serial_println!("Comandos Sistema: sysinfo, status, list-nodes");
             }
             "ls" => {
@@ -119,6 +119,13 @@ impl SovereignShell {
             "github-sync" => {
                 serial_println!("🐙 Automatización: Sincronizando con repositorio GitHub...");
                 serial_println!("✅ Proyectos y automatizaciones actualizados desde el servidor.");
+            }
+            "synergy-test" => {
+                serial_println!("🧪 Ejecutando Suite de Validación SYNERGY v2.7...");
+                match crate::neural_fable_tests::run_neural_fable_validation_tests() {
+                    Ok(rep) => serial_println!("{}", rep),
+                    Err(e) => serial_println!("❌ Error en Suite Synergy: {}", e),
+                }
             }
             _ => serial_println!("Comando '{}' procesado vía VFS/POSIX (Simulado).", parts[0]),
         }
