@@ -1,0 +1,162 @@
+//! Módulo de VGA Buffer para CRONOS W-OS
+//! Implementa driver de texto VGA para output durante el boot
+
+use core::fmt;
+use lazy_static::lazy_static;
+use spin::Mutex;
+
+/// Colores VGA
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum Color {
+    Black = 0,
+    Blue = 1,
+    Green = 2,
+    Cyan = 3,
+    Red = 4,
+    Magenta = 5,
+    Brown = 6,
+    LightGray = 7,
+    DarkGray = 8,
+    LightBlue = 9,
+    LightGreen = 10,
+    LightCyan = 11,
+    LightRed = 12,
+    LightMagenta = 13,
+    Yellow = 14,
+    White = 15,
+}
+
+/// Código de color VGA
+#[derive(Debug, Clone, Copy)]
+pub struct ColorCode(u8);
+
+impl ColorCode {
+    /// Crea un nuevo código de color
+    pub fn new(foreground: Color, background: Color) -> ColorCode {
+        ColorCode((background as u8) << 4 | (foreground as u8))
+    }
+}
+
+/// Carácter de pantalla VGA
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+struct ScreenChar {
+    ascii_character: u8,
+    color_code: ColorCode,
+}
+
+/// Writer VGA
+pub struct Writer {
+    column_position: usize,
+    color_code: ColorCode,
+    buffer: &'static mut Buffer,
+}
+
+/// Buffer VGA
+struct Buffer {
+    chars: [[ScreenChar; BUFFER_WIDTH]; BUFFER_HEIGHT],
+}
+
+const BUFFER_HEIGHT: usize = 25;
+const BUFFER_WIDTH: usize = 80;
+
+impl Writer {
+    /// Crea un nuevo writer VGA
+    pub fn new() -> Self {
+        Writer {
+            column_position: 0,
+            color_code: ColorCode::new(Color::White, Color::Black),
+            buffer: unsafe { &mut *(0xb8000 as *mut Buffer) },
+        }
+    }
+
+    /// Escribe un byte
+    pub fn write_byte(&mut self, byte: u8) {
+        match byte {
+            b'\n' => self.new_line(),
+            byte => {
+                if self.column_position >= BUFFER_WIDTH {
+                    self.new_line();
+                }
+
+                let row = BUFFER_HEIGHT - 1;
+                let col = self.column_position;
+
+                let color_code = self.color_code;
+                self.buffer.chars[row][col] = ScreenChar {
+                    ascii_character: byte,
+                    color_code,
+                };
+
+                self.column_position += 1;
+            }
+        }
+    }
+
+    /// Escribe un string
+    pub fn write_string(&mut self, s: &str) {
+        for byte in s.bytes() {
+            self.write_byte(byte);
+        }
+    }
+
+    /// Nueva línea
+    fn new_line(&mut self) {
+        self.column_position = 0;
+    }
+
+    /// Limpia una fila
+    fn clear_row(&mut self, row: usize) {
+        for col in 0..BUFFER_WIDTH {
+            self.buffer.chars[row][col] = ScreenChar {
+                ascii_character: b' ',
+                color_code: self.color_code,
+            };
+        }
+    }
+
+    /// Limpia la pantalla
+    pub fn clear_screen(&mut self) {
+        for row in 0..BUFFER_HEIGHT {
+            self.clear_row(row);
+        }
+    }
+
+    /// Establece el color
+    pub fn set_color(&mut self, color_code: ColorCode) {
+        self.color_code = color_code;
+    }
+}
+
+impl fmt::Write for Writer {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        self.write_string(s);
+        Ok(())
+    }
+}
+
+lazy_static! {
+    /// Writer VGA global
+    pub static ref WRITER: Mutex<Writer> = Mutex::new(Writer::new());
+}
+
+/// Imprime en la pantalla VGA
+#[macro_export]
+macro_rules! print {
+    ($($arg:tt)*) => ($crate::vga_buffer::_print(format_args!($($arg)*)));
+}
+
+/// Imprime con nueva línea en la pantalla VGA
+#[macro_export]
+macro_rules! println {
+    () => ($crate::print!("\n"));
+    ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
+}
+
+/// Función interna de impresión
+#[doc(hidden)]
+pub fn _print(args: fmt::Arguments) {
+    use core::fmt::Write;
+    WRITER.lock().write_fmt(args).unwrap();
+}

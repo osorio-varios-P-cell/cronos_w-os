@@ -1,0 +1,22 @@
+# Rust build artifacts
+target/
+
+# OS/Image files
+*.img
+*.img.partition
+*.fd
+*.o
+*.bin
+
+# Log and error files
+build_errors.txt
+*.log
+
+# Limine and other third party build directories (if compiled locally)
+limine-tools/
+
+# OS/IDE metadata
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

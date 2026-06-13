@@ -1,0 +1,68 @@
+[package]
+name = "cronos_w-os"
+version = "2.0.0"
+authors = ["CRONOS W-OS Team"]
+edition = "2021"
+description = "CRONOS W-OS - Sistema Operativo Soberano con Exokernel, Grafos de Recursos, IA Integrada y Crystal UI"
+license = "MIT"
+
+[[bin]]
+name = "cronos_w_os"
+path = "src/main.rs"
+
+[dependencies]
+# Boot protocol (Limine reemplaza bootloader crate para framebuffer)
+limine = "0.6.3"
+x86_64 = "0.14.2"
+volatile = "0.6.1"
+spin = "0.9.8"
+
+# Gestión de memoria
+linked_list_allocator = "0.10.5"
+
+# Gestión de CPU e interrupciones
+x86 = "0.52.0"
+pic8259 = "0.10.0"
+
+# Serial I/O
+uart_16550 = "0.2.0"
+
+# Lazy initialization
+lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
+
+# Testing y debugging
+qemu-exit = "3.0.2"
+
+# FASE 13: Networking (smoltcp sin std, compatible no_std)
+smoltcp = { version = "0.11", default-features = false, features = ["alloc", "proto-ipv4", "socket-tcp", "socket-udp", "medium-ethernet"] }
+
+# FASE 13: VirtIO drivers (virtio-drivers-and-devices, compatible no_std)
+virtio-drivers-and-devices = { version = "0.2", default-features = false, features = ["alloc"] }
+
+# FASE 13: FAT32 filesystem (fat32 crate, compatible no_std sin alloc)
+fat32 = "0.2"
+
+[features]
+default = []
+debug = []
+graphics = []
+network = []
+security = []
+naked_functions = []
+abi_x86_interrupt = []
+
+[profile.dev]
+panic = "abort"
+debug = true
+opt-level = 1
+overflow-checks = true
+
+[profile.release]
+panic = "abort"
+debug = true
+lto = true
+codegen-units = 1
+opt-level = 3
+overflow-checks = false
+
+# La configuración del linker ahora está en .cargo/config.toml (cross-platform)
