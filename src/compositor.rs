@@ -108,6 +108,8 @@ pub struct Window {
     pub focused: bool,
     pub z_order: u32,
     pub background_color: u32,
+    pub alpha: f32, // FASE 31: Transparencia (Alpha Blending)
+    pub has_shadow: bool, // FASE 31: Efecto de sombra
     pub created_at: u64,
 }
 
@@ -124,6 +126,8 @@ impl Window {
             focused: false,
             z_order: 0,
             background_color: 0xFF000000, // Black with full alpha
+            alpha: 1.0,
+            has_shadow: true,
             created_at: 0,
         }
     }

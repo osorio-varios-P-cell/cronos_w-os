@@ -37,12 +37,15 @@ unsafe impl GlobalAlloc for BumpAllocator {
 #[global_allocator]
 pub static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
-pub fn init_allocator() {
+use crate::boot::BootInfo;
+
+pub fn init_allocator(boot_info: &BootInfo) {
     unsafe {
-        // For now, use a fixed heap location since linker script symbols aren't working
-        // TODO: Fix linker script to properly define __heap_start and __heap_end
-        const HEAP_START: usize = 0x2000000; // 32MB mark
-        const HEAP_SIZE: usize = 16 * 1024 * 1024; // 16MB heap
-        ALLOCATOR.lock().init(HEAP_START as *mut u8, HEAP_SIZE);
+        // Usar el HHDM offset proporcionado por Limine para ubicar el heap de forma segura
+        // Evitamos direcciones estáticas que pueden colisionar con el kernel o módulos
+        let heap_start = boot_info.hhdm_offset + 0x2000000;
+        let heap_size = 32 * 1024 * 1024; // 32MB heap soberano
+
+        ALLOCATOR.lock().init(heap_start as *mut u8, heap_size);
     }
 }

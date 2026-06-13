@@ -165,9 +165,10 @@ use layers::{LayerArchitecture, Layer, KernelLayer, AegisLayer, LumenLayer, Gene
 use hive_ai::{HiveAi, SystemMetrics};
 
 #[no_mangle]
-pub extern "C" fn kernel_main(_boot_info: &BootInfo) -> ! {
+pub extern "C" fn kernel_main(boot_info: &BootInfo) -> ! {
     // FASE 15: Initialize global allocator con información del bootloader
-    init_allocator();
+    // BUG #16 Corregido: Usar boot_info real para inicializar memoria
+    init_allocator(boot_info);
     
     let vga_buffer = 0xb8000 as *mut u8;
     

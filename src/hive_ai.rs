@@ -1034,6 +1034,22 @@ impl HiveAi {
         self.current_metrics.clone()
     }
 
+    /// FASE 32: Razonamiento Autónomo del Grafo (Deep Reasoning)
+    pub fn reason_about_graph(&mut self) -> Vec<String> {
+        let mut insights = Vec::new();
+        let stats = self.get_graph_stats();
+
+        if stats.isolated_nodes > 10 {
+            insights.push(String::from("DETECTADO: Fragmentación excesiva en el grafo de recursos. Sugerida compactación GENESIS."));
+        }
+
+        if stats.edge_count > stats.node_count * 10 {
+            insights.push(String::from("ALERTA: Alta densidad de dependencias. Posible cuello de botella en sincronización."));
+        }
+
+        insights
+    }
+
     /// Request optimization
     pub fn request_optimization(&mut self, opt_type: OptimizationType) -> u64 {
         let request_id = self.next_request_id;
