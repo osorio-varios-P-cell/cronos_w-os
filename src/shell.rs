@@ -27,7 +27,7 @@ impl SovereignShell {
         serial_println!("--- CRONOS SOVEREIGN SHELL v2.5 (Neural Fable Edition) ---");
         serial_println!("Estado: UNIFICADO | Grafo: ACTIVO | IA: FABLE 5");
         
-        let startup = ["sysinfo", "ls", "brain-init", "dataview", "fable"];
+        let startup = ["sysinfo", "ls", "brain-init", "dataview", "fable", "mutate Dropshipping+AI_Video_Games", "swarm"];
         for cmd in startup {
             serial_println!("\n{}@sovereign:{}# {}", self.user, self.current_dir, cmd);
             self.execute_command(cmd);
@@ -41,7 +41,7 @@ impl SovereignShell {
         match parts[0] {
             "help" => {
                 serial_println!("Comandos de Archivos: ls, cd, cat, pwd, mkdir, compress, convert, unlock");
-                serial_println!("Comandos Neurales: brain-init, dataview, fable, fable-test, multiverse, instruct, swarm, link-node, synergy-test");
+                serial_println!("Comandos Neurales: brain-init, dataview, fable, fable-test, multiverse, instruct, swarm, mutate, link-node, synergy-test");
                 serial_println!("Comandos Sistema: sysinfo, status, list-nodes");
             }
             "ls" => {
@@ -106,6 +106,14 @@ impl SovereignShell {
             "convert" => {
                 serial_println!("📄 Media Engine: Convirtiendo document.docx a document.pdf...");
                 serial_println!("✅ Conversión soberana completada exitosamente.");
+            }
+            "mutate" => {
+                let domain = if parts.len() > 1 { parts[1] } else { "General" };
+                serial_println!("🧬 Iniciando Mutación Hive AI v2.8...");
+                serial_println!("  [Target]: {}", domain);
+                serial_println!("  [Status]: Fusionando conocimientos del Neural Vault...");
+                serial_println!("  [Action]: Desplegando enjambre especializado On-Demand.");
+                serial_println!("✅ Hive AI es ahora un experto en: {}.", domain);
             }
             "compress" => {
                 serial_println!("🗜️ Media Engine: Comprimiendo archivos mediante Zstd (v2.7)...");

@@ -29,11 +29,14 @@ impl HiveSwarm {
     }
 
     pub fn spawn_expert(&mut self, role: &str) {
-        self.agents.push(AiAgent {
-            id: self.agents.len() as u64 + 1,
-            role: String::from(role),
-            layer: SwarmLayer::Specialist,
-        });
+        let roles: Vec<&str> = role.split('+').collect();
+        for r in roles {
+            self.agents.push(AiAgent {
+                id: self.agents.len() as u64 + 1,
+                role: format!("Expert_{}", r),
+                layer: SwarmLayer::Specialist,
+            });
+        }
     }
 
     pub fn orchestrate(&self, task: &str) -> String {
