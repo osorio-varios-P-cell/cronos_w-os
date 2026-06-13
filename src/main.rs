@@ -156,6 +156,8 @@ mod spinlock;
 mod serial_writer;
 mod bitmap_frame_allocator;
 mod neural_fable_tests;
+mod hive_multiversal;
+mod hardware_bridge;
 // FASE 13: Módulos de networking y filesystem
 mod fat32_fs;
 

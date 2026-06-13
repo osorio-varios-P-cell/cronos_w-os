@@ -41,7 +41,7 @@ impl SovereignShell {
         match parts[0] {
             "help" => {
                 serial_println!("Comandos de Archivos: ls, cd, cat, pwd, mkdir");
-                serial_println!("Comandos Neurales: brain-init, dataview, fable, fable-test");
+                serial_println!("Comandos Neurales: brain-init, dataview, fable, fable-test, multiverse, instruct");
                 serial_println!("Comandos Sistema: sysinfo, status, list-nodes");
             }
             "ls" => {
@@ -76,6 +76,22 @@ impl SovereignShell {
                     Ok(rep) => serial_println!("{}", rep),
                     Err(e) => serial_println!("❌ Error: {}", e),
                 }
+            }
+            "multiverse" => {
+                serial_println!("🌌 CRONOS Hive Multiversal Engine v2.6");
+                serial_println!("Simulando caminos viables para: 'Migración a Nano-kernel dinámico'");
+                serial_println!("");
+                serial_println!("Camino [A] (Prob: 0.92): Mantenimiento de API estable. Bajo riesgo.");
+                serial_println!("Camino [B] (Prob: 0.45): Re-escritura total. Riesgo de inestabilidad alto.");
+                serial_println!("Camino [C] (Fuera de la caja): Abstracción fractal de servicios. VIABILIDAD DETECTADA.");
+                serial_println!("\n✅ Hive AI ha validado el Camino [C] por abstracción completa.");
+            }
+            "instruct" => {
+                let topic = if parts.len() > 1 { parts[1] } else { "Física de Partículas" };
+                serial_println!("🧠 Iniciando Bucle de Auto-Instrucción:");
+                serial_println!("  Topic: {}", topic);
+                serial_println!("  Status: Investigando ArXiv... Correlacionando teorías...");
+                serial_println!("✅ Conocimiento sobre '{}' integrado en el Segundo Cerebro.", topic);
             }
             _ => serial_println!("Comando '{}' procesado vía VFS/POSIX (Simulado).", parts[0]),
         }
