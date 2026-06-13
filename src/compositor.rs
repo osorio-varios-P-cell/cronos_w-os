@@ -9,7 +9,7 @@ use crate::capability::{Capability, Cell, CapabilityRights, invoke_capability_mu
 use crate::drivers::RedoxGpuDriver;
 use crate::hal::{GpuDevice, Device, GpuContext, GpuCommand};
 use alloc::collections::BTreeMap;
-use alloc::string::String;
+use alloc::{string::String, format};
 use alloc::vec::Vec;
 use core::sync::atomic::{AtomicU64, Ordering};
 use core::ops::Range;
@@ -219,12 +219,22 @@ impl Compositor {
     /// Create a new window
     pub fn create_window(&mut self, title: String, rect: Rect) -> WindowId {
         let window_id = WindowId::new();
+        let window_name = format!("window_{}:{}", window_id.0, title);
         
         // Create window node in the graph
         let window_node = self.graph_kernel.create_node(
             NodeType::Window,
-            title.clone(),
+            window_name,
         );
+
+        // Add metadata to the window node
+        self.graph_kernel.invoke_node_operation_mut::<(), _, _>(window_node, |node| {
+            node.set_metadata(String::from("width"), format!("{}", rect.width));
+            node.set_metadata(String::from("height"), format!("{}", rect.height));
+            node.set_metadata(String::from("x"), format!("{}", rect.x));
+            node.set_metadata(String::from("y"), format!("{}", rect.y));
+            node.set_metadata(String::from("window_id"), format!("{}", window_id.0));
+        });
 
         // Connect window to compositor
         if let Some(compositor_node) = self.compositor_node {

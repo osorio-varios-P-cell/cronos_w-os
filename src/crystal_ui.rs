@@ -237,15 +237,18 @@ impl CrystalUI {
             }
             ApplicationType::FileManager => {
                 self.file_manager = Some(FileManagerContent::new());
+                // Lanzar item en el taskbar como representación de ventana
+                self.desktop.taskbar_mut().add_item(1, "Gestor de Archivos");
             }
             ApplicationType::Terminal => {
                 self.terminal = Some(TerminalContent::new());
+                self.desktop.taskbar_mut().add_item(2, "Terminal Soberana");
             }
             ApplicationType::Settings => {
-                // Configuración pendiente de implementación
+                self.desktop.taskbar_mut().add_item(3, "Configuración");
             }
             ApplicationType::ColmenaChat => {
-                // Chat con IA Colmena pendiente de implementación
+                self.desktop.taskbar_mut().add_item(4, "IA Colmena Chat");
             }
         }
     }

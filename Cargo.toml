@@ -60,9 +60,9 @@ overflow-checks = true
 [profile.release]
 panic = "abort"
 debug = true
-lto = true
+lto = false
 codegen-units = 1
-opt-level = 3
+opt-level = 2
 overflow-checks = false
 
 # La configuración del linker ahora está en .cargo/config.toml (cross-platform)

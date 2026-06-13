@@ -26,14 +26,14 @@ pub enum ProcessState {
     Zombie,
 }
 
-/// Prioridad de proceso
+/// Prioridad de proceso (Orden de declaración define prioridad: Realtime > High > Normal > Low > Idle)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ProcessPriority {
-    Idle = 31,
-    Low = 20,
-    Normal = 10,
-    High = 5,
     Realtime = 0,
+    High = 5,
+    Normal = 10,
+    Low = 20,
+    Idle = 31,
 }
 
 impl ProcessPriority {

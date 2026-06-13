@@ -15,9 +15,9 @@ use crate::graph_kernel::{GraphKernel, NodeId, NodeType, EdgeType, HardwareType}
 /// Scanner completo de hardware del sistema
 pub struct HardwareScanner {
     /// Dispositivos PCI detectados
-    pci_devices: Vec<PciDevice>,
+    pub pci_devices: Vec<PciDevice>,
     /// Información del CPU
-    cpu_info: CpuInfo,
+    pub cpu_info: CpuInfo,
 }
 
 /// Información del CPU
