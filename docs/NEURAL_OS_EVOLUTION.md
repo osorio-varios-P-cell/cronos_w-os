@@ -13,13 +13,14 @@ Esta versión representa la cúspide de la inteligencia operativa soberana, fusi
 
 2.  **Motor de Razonamiento Fable (v2.5):**
     - **Razonamiento desde Primeros Principios:** Hive AI analiza problemas de hardware (ej: C-States) volviendo a los fundamentos físicos.
-    - **Auto-Corrección (Killing Beliefs):** Capacidad de invalidar planes de optimización si los datos del kernel muestran anomalías.
+    - \*\*Auto-Corrección (Killing Beliefs):\*\* Capacidad de invalidar planes de optimización si los datos del kernel muestran anomalías.
     - **Asignación Autónoma:** El sistema decide dinámicamente cómo balancear recursos basándose en el "contexto neural" capturado en el Segundo Cerebro.
 
 ### 🛠️ Nuevos Comandos de Shell:
 - `dataview`: Consulta el grafo de conocimiento al estilo Obsidian.
 - `brain-init`: Escanea y vincula archivos del sistema al grafo neural.
 - `fable`: Ejecuta un ciclo de razonamiento autónomo y muestra el flujo de pensamiento (Chain of Thought).
+- `fable-test`: Ejecuta la suite de pruebas de integridad neural.
 
 ## 🛡️ Visión Soberana
 CRONOS v2.5 no solo ejecuta aplicaciones; **piensa** sobre su propia configuración y **aprende** de la documentación que el usuario escribe en su Segundo Cerebro local, garantizando privacidad absoluta y autonomía total.

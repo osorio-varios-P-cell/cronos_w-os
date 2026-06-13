@@ -155,6 +155,7 @@ mod fuchsia_capabilities;
 mod spinlock;
 mod serial_writer;
 mod bitmap_frame_allocator;
+mod neural_fable_tests;
 // FASE 13: Módulos de networking y filesystem
 mod fat32_fs;
 

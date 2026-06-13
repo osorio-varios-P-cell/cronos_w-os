@@ -45,6 +45,7 @@ impl SovereignShell {
                 serial_println!("  dataview   - Run Obsidian-style Knowledge Query");
                 serial_println!("  brain-init - Initialize neural interlinking for existing files");
                 serial_println!("  fable      - Run Fable 5 Reasoning Engine (Autonomous)");
+                serial_println!("  fable-test - Run automated validation for Neural Fable systems");
                 serial_println!("  clear      - Clear the screen (simulated)");
             }
             "status" => {
@@ -110,6 +111,17 @@ impl SovereignShell {
                 serial_println!("  Throughput: 10 Gbps (Graph-mediated Zero-Copy)");
                 serial_println!("  Latency: 5us (Inter-node communication)");
                 serial_println!("  Firewall: Active (Sovereign Graph Filtering)");
+            }
+            "fable-test" => {
+                serial_println!("Iniciando Test de Validación Automática para Neural Fable...");
+                match crate::neural_fable_tests::run_neural_fable_validation_tests() {
+                    Ok(report) => {
+                        serial_println!("{}", report);
+                    },
+                    Err(e) => {
+                        serial_println!("❌ ERROR en Validación: {}", e);
+                    }
+                }
             }
             "dataview" => {
                 serial_println!("--- Hive Dataview (Second Brain Interface) ---");
