@@ -72,6 +72,8 @@ pub enum NodeType {
     SecuritySubject,
     /// Security object
     SecurityObject,
+    /// Virtualization resource (Hypervisor/VM/Container)
+    VirtualizationResource,
     /// Generic resource
     Generic(String),
 }
@@ -110,6 +112,8 @@ pub enum EdgeType {
     InterruptRouting,
     /// DMA mapping
     DmaMapping,
+    /// Virtualization mapping (EPT/NPT)
+    VirtualMapping,
     /// Generic operation
     Generic(String),
 }

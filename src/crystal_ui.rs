@@ -11,6 +11,18 @@ use alloc::format;
 use crate::capability::{Capability, Cell, CapabilityId, invoke_capability, invoke_capability_mut};
 use crate::desktop::{DesktopEnvironment, Taskbar, StartMenu};
 
+/// FASE 16: Paso de instalación para el asistente GENESIS
+#[derive(Debug, Clone, PartialEq)]
+pub enum InstallerStep {
+    HardwareDetection,
+    DiskPartitioning,
+    FileSystemCreation,
+    KernelCopy,
+    SystemConfiguration,
+    Finalizing,
+    Complete,
+}
+
 /// Tipo de aplicación
 #[derive(Debug, Clone, PartialEq)]
 pub enum ApplicationType {
@@ -24,11 +36,9 @@ pub enum ApplicationType {
     Settings,
     /// IA Colmena
     ColmenaChat,
-    /// Aplicación Virtualizada (Modo Fluido)
-    VirtualApp(String),
     /// Instalador GENESIS
     Installer {
-        current_step: String,
+        step: InstallerStep,
         progress: u8,
     },
 }
@@ -120,8 +130,11 @@ impl WebBrowserContent {
         self.current_url = String::from(url);
         self.loading_state = LoadingState::Loading;
 
-        // FASE 16: Conexión con el stack smoltcp real
-        // println!("🌐 Navegando a: {} usando stack smoltcp...", url);
+        // FASE 16: Vínculo con el stack smoltcp y DNS soberano
+        // En hardware real, aquí el navegador usaría los módulos:
+        // - src/dns.rs para resolver el host
+        // - src/socket.rs para abrir conexión TCP
+        // - src/http_client.rs para el fetch real
 
         self.loading_state = LoadingState::Loaded;
     }
@@ -176,7 +189,7 @@ pub struct TerminalContent {
     pub cursor_position: u16,
     /// Historial de comandos
     pub command_history: Vec<String>,
-    /// FASE 16: Portapapeles y Selección para Chat/Terminal
+    /// FASE 16: Portapapeles y Selección
     pub clipboard: String,
     pub selected_text: Option<String>,
 }
@@ -198,34 +211,28 @@ impl TerminalContent {
         }
     }
 
-    /// FASE 16: Copiar texto seleccionado al portapapeles
-    pub fn copy_selection(&mut self) {
+    /// Copiar texto al portapapeles
+    pub fn copy(&mut self) {
         if let Some(ref text) = self.selected_text {
             self.clipboard = text.clone();
         }
     }
 
-    /// FASE 16: Pegar texto desde el portapapeles
-    pub fn paste_from_clipboard(&mut self) {
+    /// Pegar texto desde el portapapeles
+    pub fn paste(&mut self) {
         self.current_line.push_str(&self.clipboard);
     }
 
-    /// FASE 16: Seleccionar todo el texto (historial + línea actual)
-    pub fn select_all(&mut self) {
-        let mut all_text = String::new();
-        for line in &self.lines {
-            all_text.push_str(line);
-            all_text.push('\n');
+    /// Selección de rango de texto
+    pub fn select_range(&mut self, start: usize, end: usize) {
+        let mut text = String::new();
+        for i in start..=end {
+            if let Some(line) = self.lines.get(i) {
+                text.push_str(line);
+                text.push('\n');
+            }
         }
-        all_text.push_str(&self.current_line);
-        self.selected_text = Some(all_text);
-    }
-
-    /// FASE 16: Limpiar el chat
-    pub fn clear_chat(&mut self) {
-        self.lines.clear();
-        self.lines.push(String::from("✨ Chat de Hive AI limpiado."));
-        self.lines.push(String::from("💻 "));
+        self.selected_text = Some(text);
     }
 
     pub fn execute_command(&mut self, command: &str) -> String {
@@ -276,49 +283,35 @@ impl CrystalUI {
     pub fn open_application(&mut self, app_type: ApplicationType) {
         self.active_application = Some(app_type.clone());
         
-        // Registrar aplicación en la barra de tareas
-        let app_name = match app_type {
-            ApplicationType::WebBrowser => "Navegador Web",
-            ApplicationType::FileManager => "Gestor de Archivos",
-            ApplicationType::Terminal => "Terminal",
-            ApplicationType::Settings => "Configuración",
-            ApplicationType::ColmenaChat => "Chat IA Colmena",
-            ApplicationType::VirtualApp(ref name) => name,
-            ApplicationType::Installer { .. } => "Instalador GENESIS",
-        };
-        self.desktop.taskbar_mut().add_item(0, app_name);
-
         match app_type {
             ApplicationType::WebBrowser => {
                 self.web_browser = Some(WebBrowserContent::new());
             }
             ApplicationType::FileManager => {
                 self.file_manager = Some(FileManagerContent::new());
+                // Lanzar item en el taskbar como representación de ventana
+                self.desktop.taskbar_mut().add_item(1, "Gestor de Archivos");
             }
             ApplicationType::Terminal => {
                 self.terminal = Some(TerminalContent::new());
+                self.desktop.taskbar_mut().add_item(2, "Terminal Soberana");
             }
             ApplicationType::Settings => {
-                // Configuración pendiente de implementación
+                self.desktop.taskbar_mut().add_item(3, "Configuración");
             }
             ApplicationType::ColmenaChat => {
-                // FASE 16: Interacción directa con Hive AI
-                let welcome_msg = "Bienvenido al terminal soberano de Hive AI. ¿En qué puedo ayudarte hoy?";
-                self.terminal = Some(TerminalContent::new()); // Reutilizar estructura de terminal para el chat
-            }
-            ApplicationType::VirtualApp(_) => {
-                // Aplicación virtualizada ya gestionada por el compositor
+                self.desktop.taskbar_mut().add_item(4, "IA Colmena Chat");
             }
             ApplicationType::Installer { .. } => {
-                // El instalador inicia su bucle de progreso
+                self.desktop.taskbar_mut().add_item(5, "Instalador GENESIS");
             }
         }
     }
 
-    /// FASE 16: Actualizar el estado del instalador
-    pub fn update_installer_progress(&mut self, step: &str, progress: u8) {
-        if let Some(ApplicationType::Installer { ref mut current_step, progress: ref mut p }) = self.active_application {
-            *current_step = String::from(step);
+    /// Actualizar el progreso del instalador
+    pub fn update_installer(&mut self, step: InstallerStep, progress: u8) {
+        if let Some(ApplicationType::Installer { step: ref mut s, progress: ref mut p }) = self.active_application {
+            *s = step;
             *p = progress;
         }
     }

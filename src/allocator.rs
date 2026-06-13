@@ -37,12 +37,27 @@ unsafe impl GlobalAlloc for BumpAllocator {
 #[global_allocator]
 pub static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
-pub fn init_allocator() {
+use crate::boot::BootInfo;
+
+pub fn init_allocator(boot_info: &BootInfo) {
     unsafe {
-        // For now, use a fixed heap location since linker script symbols aren't working
-        // TODO: Fix linker script to properly define __heap_start and __heap_end
-        const HEAP_START: usize = 0x2000000; // 32MB mark
-        const HEAP_SIZE: usize = 16 * 1024 * 1024; // 16MB heap
-        ALLOCATOR.lock().init(HEAP_START as *mut u8, HEAP_SIZE);
+        // BUG #16 Corregido: Buscar una región usable real en el mapa de memoria
+        // En lugar de una dirección estática, usamos la primera región usable >= 32MB
+        let heap_size = 32 * 1024 * 1024;
+        let mut heap_start = 0;
+
+        for region in boot_info.usable_regions.iter().flatten() {
+            if region.length >= heap_size as u64 {
+                heap_start = boot_info.hhdm_offset + region.base;
+                break;
+            }
+        }
+
+        if heap_start != 0 {
+            ALLOCATOR.lock().init(heap_start as *mut u8, heap_size);
+        } else {
+            // Fallback de emergencia si no hay regiones grandes (no debería ocurrir en HW real)
+            ALLOCATOR.lock().init((boot_info.hhdm_offset + 0x2000000) as *mut u8, heap_size);
+        }
     }
 }

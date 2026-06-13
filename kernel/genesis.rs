@@ -29,18 +29,6 @@ pub enum GenerationState {
     Failed,
 }
 
-/// Paso de instalación
-#[derive(Debug, Clone, PartialEq)]
-pub enum InstallationStep {
-    HardwareDetection,
-    DiskPartitioning,
-    FileSystemCreation,
-    KernelCopy,
-    SystemConfiguration,
-    Finalizing,
-    Complete,
-}
-
 /// Componente generado
 #[derive(Debug, Clone)]
 pub struct GeneratedComponent {
@@ -110,9 +98,6 @@ pub struct GenesisAutoCreationSystem {
     optimization_strategy: OptimizationStrategy,
     auto_optimization_enabled: bool,
     code_generation_enabled: bool,
-    // FASE 16: Estado de instalación
-    pub installation_step: InstallationStep,
-    pub installation_progress: u8,
 }
 
 impl GenesisAutoCreationSystem {
@@ -125,8 +110,6 @@ impl GenesisAutoCreationSystem {
             optimization_strategy: OptimizationStrategy::Hybrid,
             auto_optimization_enabled: true,
             code_generation_enabled: true,
-            installation_step: InstallationStep::HardwareDetection,
-            installation_progress: 0,
         }
     }
 
@@ -380,38 +363,6 @@ impl GenesisAutoCreationSystem {
     /// Obtiene todos los componentes
     pub fn get_components(&self) -> Vec<&GeneratedComponent> {
         self.components.values().collect()
-    }
-
-    /// FASE 16: Avanzar proceso de instalación
-    pub fn advance_installation(&mut self) -> bool {
-        match self.installation_step {
-            InstallationStep::HardwareDetection => {
-                self.installation_progress = 15;
-                self.installation_step = InstallationStep::DiskPartitioning;
-            }
-            InstallationStep::DiskPartitioning => {
-                self.installation_progress = 35;
-                self.installation_step = InstallationStep::FileSystemCreation;
-            }
-            InstallationStep::FileSystemCreation => {
-                self.installation_progress = 55;
-                self.installation_step = InstallationStep::KernelCopy;
-            }
-            InstallationStep::KernelCopy => {
-                self.installation_progress = 80;
-                self.installation_step = InstallationStep::SystemConfiguration;
-            }
-            InstallationStep::SystemConfiguration => {
-                self.installation_progress = 95;
-                self.installation_step = InstallationStep::Finalizing;
-            }
-            InstallationStep::Finalizing => {
-                self.installation_progress = 100;
-                self.installation_step = InstallationStep::Complete;
-            }
-            InstallationStep::Complete => return false,
-        }
-        true
     }
 
     /// Genera reporte de GENESIS

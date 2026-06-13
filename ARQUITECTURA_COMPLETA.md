@@ -253,23 +253,6 @@ Sistema de seguridad AEGIS con aislamiento perfecto.
 - Resistente a cuántica
 - Rotación de claves
 
-## 🖥️ Integración de Escritorio y Modo Fluido
-
-### Modo Fluido (Seamless Mode)
-
-CRONOS W-OS permite la integración profunda de aplicaciones virtualizadas mediante el Modo Fluido.
-
-**Funcionalidades:**
-- **Transparencia Dinámica:** El compositor LUMEN detecta ventanas de tipo `Virtual` y elimina el fondo del escritorio virtualizado, permitiendo que la aplicación flote sobre el escritorio nativo de CRONOS.
-- **Integración en Barra de Tareas:** Las aplicaciones que corren dentro de una VM se registran automáticamente en la barra de tareas de Crystal UI.
-- **Simultaneidad Real:** Es posible ejecutar aplicaciones de Linux, Windows y Android al mismo tiempo, compartiendo el mismo espacio de trabajo físico sin necesidad de alternar entre pantallas completas.
-
-**Componentes involucrados:**
-- `virtualization.rs`: Configuración de `seamless_mode` en la VM.
-- `compositor.rs`: Lógica de renderizado con canal alfa para ventanas virtuales.
-- `window_manager.rs`: Gestión de ventanas de tipo `Virtual`.
-- `crystal_ui.rs`: Registro y visualización en la interfaz de usuario.
-
 ## 🤖 Integración IA
 
 ### IA Colmena

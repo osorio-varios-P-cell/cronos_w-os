@@ -26,22 +26,19 @@ pub enum ProcessState {
     Zombie,
 }
 
-/// Prioridad del proceso (0 = más alta, 31 = más baja)
+/// Prioridad de proceso (Orden de declaración define prioridad: Realtime > High > Normal > Low > Idle)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ProcessPriority(u8);
+pub enum ProcessPriority {
+    Realtime = 0,
+    High = 5,
+    Normal = 10,
+    Low = 20,
+    Idle = 31,
+}
 
 impl ProcessPriority {
-    pub const HIGH: Self = Self(0);
-    pub const NORMAL: Self = Self(10);
-    pub const LOW: Self = Self(20);
-    pub const IDLE: Self = Self(31);
-
-    pub fn new(value: u8) -> Self {
-        Self(value.min(31))
-    }
-
     pub fn value(&self) -> u8 {
-        self.0
+        *self as u8
     }
 }
 
@@ -350,12 +347,12 @@ impl Scheduler {
         // Extraer prioridades antes de ordenar
         let mut process_priorities: Vec<(u64, ProcessPriority)> = self.ready_queue.iter()
             .map(|&id| {
-                let priority = self.get_process(id).map(|p| p.priority).unwrap_or(ProcessPriority::IDLE);
+                let priority = self.get_process(id).map(|p| p.priority).unwrap_or(ProcessPriority::Idle);
                 (id, priority)
             })
             .collect();
 
-        // Ordenar por prioridad
+        // Ordenar por prioridad (menor valor es mayor prioridad)
         process_priorities.sort_by(|a, b| a.1.cmp(&b.1));
 
         // Reconstruir la ready_queue ordenada

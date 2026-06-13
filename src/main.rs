@@ -5,7 +5,7 @@
 extern crate alloc;
 
 use core::panic::PanicInfo;
-use alloc::string::String;
+use alloc::{string::String, format};
 use crate::serial_writer::serial_panic;
 use crate::boot::BootInfo;
 
@@ -104,6 +104,7 @@ mod agent_security;
 mod production_deployment;
 mod browser_automation;
 mod shell;
+mod guest_integration;
 mod redox_drivers;
 mod redox_ext4;
 mod cosmic_compositor;
@@ -138,7 +139,6 @@ mod pdf_generation;
 mod auto_evolution;
 mod linux_vm;
 mod windows_vm;
-mod macos_vm;
 mod android_avd;
 mod vm_program_installer;
 mod layer_robustness;
@@ -168,7 +168,8 @@ use hive_ai::{HiveAi, SystemMetrics};
 #[no_mangle]
 pub extern "C" fn kernel_main(boot_info: &BootInfo) -> ! {
     // FASE 15: Initialize global allocator con información del bootloader
-    init_allocator();
+    // BUG #16 Corregido: Usar boot_info real para inicializar memoria
+    init_allocator(boot_info);
     
     let vga_buffer = 0xb8000 as *mut u8;
     
@@ -180,46 +181,118 @@ pub extern "C" fn kernel_main(boot_info: &BootInfo) -> ! {
         }
         
         // Write boot message
-        let boot_msg = b"CRONOS W-OS v2.0 - Exokernel with Capabilities";
+        let boot_msg = b"CRONOS W-OS v2.0 - SO SOBERANO (Exokernel + Grafos)";
         for (i, &byte) in boot_msg.iter().enumerate() {
             *vga_buffer.offset(i as isize * 2) = byte;
-            *vga_buffer.offset(i as isize * 2 + 1) = 0x0f;
+            *vga_buffer.offset(i as isize * 2 + 1) = 0x0b; // Cyan
         }
-        
-        // Initialize the system
-        let status = initialize_system(vga_buffer);
-        
+    }
+
+    // Inicializar GDT e IDT
+    gdt::init_gdt();
+    interrupts::init_idt();
+    interrupts::init_pics();
+    x86_64::instructions::interrupts::enable();
+
+    // Inicializar hardware real (PCI y ACPI)
+    let mut scanner = hardware::HardwareScanner::new();
+    let pci_devices = scanner.scan_pci_bus();
+
+    let mut acpi_manager = acpi::AcpiManager::new();
+    let acpi_status = acpi_manager.initialize();
+
+    // Initialize the system architecture
+    let (status, graph_kernel, layer_arch) = initialize_system_with_graph_and_layers(vga_buffer);
+
+    if status {
+        if let Some(gk) = graph_kernel {
+            scanner.register_in_graph(&gk);
+
+            // Registrar ACPI y habilitar SMP (Multinúcleo)
+            if acpi_status.is_ok() {
+                acpi_manager.set_graph_kernel(gk.clone());
+                let _ = acpi_manager.enumerate_acpi_devices();
+
+                if let Some(madt) = &acpi_manager.madt {
+                    let core_count = madt.processor_count();
+                    let msg = format!("SOPORTE MULTINUCLEO DETECTADO: {} CORES", core_count);
+                    for (i, byte) in msg.as_bytes().iter().enumerate() {
+                        unsafe {
+                            *vga_buffer.offset((i + 320) as isize * 2) = *byte;
+                            *vga_buffer.offset((i + 320) as isize * 2 + 1) = 0x0d; // Light Magenta
+                        }
+                    }
+                }
+            }
+
+            // FASE 2: Inicializar NVMe y xHCI con direcciones reales del scanner PCI
+            for dev in &pci_devices {
+                if dev.class_id == 0x01 && dev.subclass_id == 0x08 { // NVMe
+                    let mut nvme = nvme::NvmeController::new(0, 0);
+                    if nvme.initialize().is_ok() {
+                        let nvme_node = gk.create_node(
+                            graph_kernel::NodeType::HardwareDevice(graph_kernel::HardwareType::Nvme),
+                            format!("nvme_{:02x}:{:02x}", dev.bus, dev.device),
+                        );
+                        gk.create_edge(gk.root_node().unwrap(), nvme_node, graph_kernel::EdgeType::Ownership);
+                    }
+                } else if dev.class_id == 0x0C && dev.subclass_id == 0x03 { // xHCI (USB 3.0)
+                    let mut xhci = usb_xhci::XhciController::new(0);
+                    if xhci.initialize().is_ok() {
+                        let xhci_node = gk.create_node(
+                            graph_kernel::NodeType::HardwareDevice(graph_kernel::HardwareType::Xhci),
+                            format!("xhci_{:02x}:{:02x}", dev.bus, dev.device),
+                        );
+                        gk.create_edge(gk.root_node().unwrap(), xhci_node, graph_kernel::EdgeType::Ownership);
+                    }
+                }
+            }
+
+            // FASE 2.5: Virtualización y Contenedores en el Grafo
+            let hv_node = gk.create_node(
+                graph_kernel::NodeType::VirtualizationResource,
+                String::from("hypervisor_root"),
+            );
+            gk.create_edge(gk.root_node().unwrap(), hv_node, graph_kernel::EdgeType::Ownership);
+
+            // FASE 5: IA Colmena
+            if let Some(arch) = layer_arch {
+                let mut colmena = colmena_integration::ColmenaObserverBridge::new(arch);
+                colmena.init();
+                colmena.register_cpu(scanner.cpu_info.clone());
+                colmena.update_metrics();
+            }
+
+            // Iniciar Shell Soberana
+            let shell = shell::SovereignShell::new(gk.clone());
+            shell.run();
+        }
+    }
+
+    unsafe {
         // Write status
         let status_msg = if status {
-            b"System initialized successfully - Capabilities active"
+            b"SISTEMA INICIALIZADO - CAPABILITIES Y GRAFOS ACTIVOS"
         } else {
-            b"System initialization failed - Capabilities inactive "
+            b"ERROR EN INICIALIZACION DE ARQUITECTURA CRONOS      "
         };
         
         for (i, &byte) in status_msg.iter().enumerate() {
             *vga_buffer.offset((i + 80) as isize * 2) = byte;
-            *vga_buffer.offset((i + 80) as isize * 2 + 1) = 0x0f;
+            *vga_buffer.offset((i + 80) as isize * 2 + 1) = if status { 0x0a } else { 0x0c }; // Green or Red
         }
         
         // Write architecture info
-        let arch_msg = b"4-Layer: AEGIS, LUMEN, GENESIS, Kernel - Hive AI Bridge";
+        let arch_msg = b"CAPAS: [KERNEL] -> [AEGIS] -> [LUMEN] -> [GENESIS]";
         for (i, &byte) in arch_msg.iter().enumerate() {
             *vga_buffer.offset((i + 160) as isize * 2) = byte;
-            *vga_buffer.offset((i + 160) as isize * 2 + 1) = 0x0f;
+            *vga_buffer.offset((i + 160) as isize * 2 + 1) = 0x0e; // Yellow
         }
         
-        // Write driver info
-        let driver_msg = b"Drivers: GPU, NVMe, xHCI, WiFi, Audio, Net (Redox ports)";
-        for (i, &byte) in driver_msg.iter().enumerate() {
-            *vga_buffer.offset((i + 240) as isize * 2) = byte;
-            *vga_buffer.offset((i + 240) as isize * 2 + 1) = 0x0f;
-        }
-        
-        // Write compositor info
-        let comp_msg = b"Compositor: GraphNode windows + GPU capability - No syscalls";
-        for (i, &byte) in comp_msg.iter().enumerate() {
-            *vga_buffer.offset((i + 320) as isize * 2) = byte;
-            *vga_buffer.offset((i + 320) as isize * 2 + 1) = 0x0f;
+        let dev_count_msg = format!("DISPOSITIVOS PCI DETECTADOS: {}", pci_devices.len());
+        for (i, byte) in dev_count_msg.as_bytes().iter().enumerate() {
+            *vga_buffer.offset((i + 240) as isize * 2) = *byte;
+            *vga_buffer.offset((i + 240) as isize * 2 + 1) = 0x07; // Light Gray
         }
     }
     
@@ -227,6 +300,10 @@ pub extern "C" fn kernel_main(boot_info: &BootInfo) -> ! {
 }
 
 fn initialize_system(vga_buffer: *mut u8) -> bool {
+    initialize_system_with_graph_and_layers(vga_buffer).0
+}
+
+fn initialize_system_with_graph_and_layers(vga_buffer: *mut u8) -> (bool, Option<GraphKernel>, Option<LayerArchitecture>) {
     // Simplified initialization for no_std environment
     // The full architecture is implemented in the modules
     
@@ -234,10 +311,14 @@ fn initialize_system(vga_buffer: *mut u8) -> bool {
     let mut graph_kernel = GraphKernel::new();
     graph_kernel.initialize();
     
+    let gk_return = graph_kernel.clone();
+
     // Step 2: Initialize 4-Layer Architecture
     let mut layer_architecture = LayerArchitecture::new(graph_kernel);
     layer_architecture.initialize();
     
+    let arch_return = layer_architecture.clone();
+
     // Step 3: Initialize individual layers
     let kernel_layer = KernelLayer::new(layer_architecture.clone());
     kernel_layer.initialize();
@@ -262,10 +343,10 @@ fn initialize_system(vga_buffer: *mut u8) -> bool {
     genesis_layer.initialize();
     
     // Step 8: Initialize Hive AI as bridge capability between all layers
-    let mut hive_ai = HiveAi::new(layer_architecture);
+    let hive_ai = HiveAi::new(layer_architecture);
     hive_ai.initialize();
     
-    true
+    (true, Some(gk_return), Some(arch_return))
 }
 
 // Helper function to invoke capability mut

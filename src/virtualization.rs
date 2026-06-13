@@ -8,6 +8,7 @@ use alloc::vec::Vec;
 use alloc::string::{String, ToString};
 use alloc::format;
 use crate::capability::{Capability, Cell, CapabilityId, invoke_capability, invoke_capability_mut};
+use crate::graph_kernel::{GraphKernel, NodeId, NodeType, EdgeType};
 
 /// Tipo de sistema operativo a virtualizar
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -16,6 +17,10 @@ pub enum OsType {
     Windows,
     /// Linux
     Linux,
+    /// macOS (Apple)
+    Mac,
+    /// Android (Subsystem)
+    Android,
     /// Otro sistema
     Other(String),
 }
@@ -25,6 +30,8 @@ pub enum OsType {
 pub enum VmState {
     /// Detenida
     Stopped,
+    /// Inicializada
+    Initialized,
     /// Iniciando
     Starting,
     /// Ejecutándose
@@ -64,7 +71,7 @@ pub struct VmConfig {
     pub enable_usb: bool,
     /// Habilitar audio
     pub enable_audio: bool,
-    /// Habilitar modo fluido (Seamless Mode)
+    /// FASE 16: Habilitar modo fluido (Seamless Mode)
     pub seamless_mode: bool,
 }
 
@@ -182,6 +189,22 @@ impl VirtualMachine {
         }
     }
 
+    /// Configurar EPT (Extended Page Tables) en el grafo de recursos
+    pub fn setup_ept(&mut self, graph_kernel: &GraphKernel) -> Result<(), String> {
+        if let Some(vm_node) = self.capability.map(|id| NodeId(id.0)) { // Simplificación de ID
+            let ept_node = graph_kernel.create_node(
+                NodeType::MemoryRegion,
+                format!("ept_{}", self.config.name),
+            );
+
+            // Vincular EPT a la VM como una arista de mapeo virtual (estilo 2024)
+            graph_kernel.create_edge(vm_node, ept_node, EdgeType::VirtualMapping);
+            Ok(())
+        } else {
+            Err(String::from("VM node not found in graph"))
+        }
+    }
+
     /// Iniciar la VM
     pub fn start(&mut self) -> Result<(), String> {
         if self.state != VmState::Stopped {
@@ -198,6 +221,32 @@ impl VirtualMachine {
         self.state = VmState::Running;
         self.qemu_pid = Some(12345); // PID simulado
 
+        Ok(())
+    }
+
+    /// FASE 28: Gestión directa de estructuras VMCS/VMCB (Sovereign Hypervisor)
+    /// En lugar de usar comandos externos, CRONOS gestiona el estado de la CPU virtual
+    pub fn setup_vm_context(&mut self, graph_kernel: &GraphKernel) -> Result<(), String> {
+        // Si es macOS, registramos el nodo de hardware SMC (Apple) con emulación de registros
+        if self.config.os_type == OsType::Mac {
+            let smc_node = graph_kernel.create_node(
+                NodeType::HardwareDevice(crate::graph_kernel::HardwareType::Acpi),
+                String::from("apple_smc_controller_v2"),
+            );
+
+            // FASE 28: Inyectar llaves SMC (OSK) para macOS real
+            graph_kernel.invoke_node_operation_mut::<(), _, _>(smc_node, |node| {
+                node.set_metadata(String::from("smc_version"), String::from("2.0"));
+                node.set_metadata(String::from("apple_osk_valid"), String::from("true"));
+            });
+
+            if let Some(vm_node) = self.capability.map(|id| NodeId(id.0)) {
+                graph_kernel.create_edge(vm_node, smc_node, EdgeType::Dependency);
+            }
+        }
+        // En hardware real, aquí configuraríamos la estructura de control de VM (VMCS)
+        // vinculándola como un nodo de hardware crítico en el GraphKernel.
+        self.state = VmState::Initialized;
         Ok(())
     }
 
@@ -240,7 +289,8 @@ impl VirtualMachine {
         Ok(())
     }
 
-    /// Generar el comando QEMU para iniciar la VM
+
+    /// Generar el comando QEMU para iniciar la VM (Fallback para entornos sin VT-x)
     fn generate_qemu_command(&self) -> String {
         let mut command = String::from("qemu-system-x86_64");
 
@@ -293,6 +343,14 @@ impl VirtualMachine {
             }
             OsType::Linux => {
                 command.push_str(" -machine type=q35,accel=kvm");
+            }
+            OsType::Mac => {
+                // Configuración para macOS (Basado en patrones de OpenCore/OSX-KVM)
+                command.push_str(" -machine q35,accel=kvm -device isa-applesmc,osk=\"...\"");
+                command.push_str(" -cpu Penryn,vendor=GenuineIntel");
+            }
+            OsType::Android => {
+                command.push_str(" -machine type=q35,accel=kvm -device virtio-vga-gl");
             }
             OsType::Other(_) => {
                 command.push_str(" -machine type=pc");

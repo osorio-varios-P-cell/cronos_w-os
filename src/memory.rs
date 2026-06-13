@@ -12,9 +12,10 @@ use x86_64::{
     PhysAddr, VirtAddr,
 };
 use core::ptr;
-use alloc::vec::Vec;
+use alloc::{vec::Vec, format};
 use crate::allocator::ALLOCATOR;
 use crate::bitmap_frame_allocator::{BitmapFrameAllocator, MemZone};
+use crate::graph_kernel::{GraphKernel, NodeId, NodeType, EdgeType};
 
 /// Custom memory types (replacing bootloader::bootinfo)
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -141,6 +142,27 @@ pub struct MemoryManager {
     security_state: MemorySecurityState,
     /// Asignador de frames basado en bitmap (O(n/64))
     frame_allocator: BitmapFrameAllocator,
+}
+
+impl MemoryManager {
+    /// Registra las regiones de memoria en el GraphKernel
+    pub fn register_in_graph(&self, graph_kernel: &GraphKernel) {
+        if let Some(root_id) = graph_kernel.root_node() {
+            for region in &self.available_memory {
+                let name = format!("mem_0x{:x}_0x{:x}",
+                    region.range.start_frame_number * 4096,
+                    region.range.end_frame_number * 4096);
+
+                let node_id = graph_kernel.create_node(
+                    NodeType::MemoryRegion,
+                    name,
+                );
+
+                // Crear arista de Ownership desde el root
+                graph_kernel.create_edge(root_id, node_id, EdgeType::Ownership);
+            }
+        }
+    }
 }
 
 /// Estado de seguridad de la memoria

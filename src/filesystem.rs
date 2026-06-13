@@ -14,12 +14,20 @@ use crate::graph_kernel::GraphKernel;
 /// Tipo de sistema de archivos
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FileSystemType {
+    /// CRONOSFS - Sistema de archivos nativo
+    CronosFs,
     /// FAT32
     Fat32,
     /// ext4
     Ext4,
     /// NTFS
     Ntfs,
+    /// TMPFS
+    TmpFs,
+    /// PROCFS
+    ProcFs,
+    /// SYSFS
+    SysFs,
     /// Desconocido
     Unknown,
 }
@@ -222,10 +230,22 @@ impl VirtualFileSystem {
     /// Inicializar el VFS
     pub fn initialize(&mut self) -> Result<(), String> {
         // Crear el directorio raíz
-        let root_inode = VfsInode::new(0, String::from("/"), FileType::Directory);
-        self.root_inode_id = Some(0);
-        self.inodes.insert(0, root_inode);
+        let root_id = 0;
+        let root_inode = VfsInode::new(root_id, String::from("/"), FileType::Directory);
+        self.root_inode_id = Some(root_id);
+        self.inodes.insert(root_id, root_inode);
         self.next_inode_id = 1;
+
+        // Crear directorios básicos
+        self.create_file(root_id, String::from("bin"), FileType::Directory)?;
+        self.create_file(root_id, String::from("etc"), FileType::Directory)?;
+        self.create_file(root_id, String::from("home"), FileType::Directory)?;
+        self.create_file(root_id, String::from("usr"), FileType::Directory)?;
+        self.create_file(root_id, String::from("var"), FileType::Directory)?;
+        self.create_file(root_id, String::from("tmp"), FileType::Directory)?;
+        self.create_file(root_id, String::from("dev"), FileType::Directory)?;
+        self.create_file(root_id, String::from("proc"), FileType::Directory)?;
+        self.create_file(root_id, String::from("sys"), FileType::Directory)?;
 
         Ok(())
     }
@@ -441,7 +461,7 @@ impl FileSystemManager {
     /// Montar un sistema de archivos
     pub fn mount(&mut self, mount_point: String, fs_type: FileSystemType, device_id: u64) -> Result<(), String> {
         match fs_type {
-            FileSystemType::Fat32 => {
+            FileSystemType::Fat32 | FileSystemType::CronosFs => {
                 if self.fat32.is_none() {
                     let mut fat32 = Fat32FileSystem::new();
                     // No necesitamos pasar el graph kernel aquí, ya que se puede establecer después
@@ -455,6 +475,15 @@ impl FileSystemManager {
             }
             FileSystemType::Ntfs => {
                 Err(String::from("NTFS not implemented yet"))
+            }
+            FileSystemType::TmpFs => {
+                Err(String::from("TMPFS not implemented yet"))
+            }
+            FileSystemType::ProcFs => {
+                Err(String::from("PROCFS not implemented yet"))
+            }
+            FileSystemType::SysFs => {
+                Err(String::from("SYSFS not implemented yet"))
             }
             FileSystemType::Unknown => {
                 Err(String::from("Unknown filesystem type"))

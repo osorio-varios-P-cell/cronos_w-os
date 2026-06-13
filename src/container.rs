@@ -10,7 +10,7 @@ use alloc::string::{String, ToString};
 use alloc::format;
 use alloc::collections::{BTreeMap, BTreeSet};
 use crate::capability::{Capability, Cell, CapabilityId, invoke_capability, invoke_capability_mut};
-use crate::graph_kernel::{GraphKernel, GraphStats};
+use crate::graph_kernel::{GraphKernel, GraphStats, NodeId};
 
 /// Estado del proceso
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -287,6 +287,21 @@ impl Container {
             self.resource_usage.network_mbps = self.config.resource_config.max_network_mbps / 10;
         } else {
             self.resource_usage = ProcessResourceUsage::default();
+        }
+    }
+
+    /// FASE 29: Aplicar vista restringida (Graph Namespace)
+    pub fn apply_graph_namespace(&self, graph_kernel: &GraphKernel) -> Result<(), String> {
+        if let Some(container_node) = self.capability.map(|id| NodeId(id.0)) {
+            // En un modelo de grafos, el namespace se define por los nodos alcanzables.
+            // Registramos el aislamiento en el nodo del contenedor.
+            graph_kernel.invoke_node_operation_mut::<(), _, _>(container_node, |node| {
+                node.set_metadata(String::from("isolation"), String::from("strict-graph-namespace"));
+                node.set_metadata(String::from("visible_subgraph_root"), format!("{}", container_node.0));
+            });
+            Ok(())
+        } else {
+            Err(String::from("Container node not found in graph"))
         }
     }
 

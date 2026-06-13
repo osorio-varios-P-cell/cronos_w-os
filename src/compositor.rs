@@ -9,7 +9,7 @@ use crate::capability::{Capability, Cell, CapabilityRights, invoke_capability_mu
 use crate::drivers::RedoxGpuDriver;
 use crate::hal::{GpuDevice, Device, GpuContext, GpuCommand};
 use alloc::collections::BTreeMap;
-use alloc::string::String;
+use alloc::{string::String, format, vec};
 use alloc::vec::Vec;
 use core::sync::atomic::{AtomicU64, Ordering};
 use core::ops::Range;
@@ -93,7 +93,10 @@ pub enum WindowType {
     Menu,
     Tooltip,
     Dialog,
-    Virtual,
+    /// Android Application window (integrated via Android Subsystem)
+    AndroidApp,
+    /// Foreign OS Window (from Virtualization context)
+    ForeignOSApp { os_type: String },
 }
 
 /// Window in the compositor
@@ -109,6 +112,9 @@ pub struct Window {
     pub focused: bool,
     pub z_order: u32,
     pub background_color: u32,
+    pub alpha: f32, // FASE 31: Transparencia (Alpha Blending)
+    pub has_shadow: bool, // FASE 31: Efecto de sombra
+    pub blur_radius: u32, // FASE 31: Crystal Flow Blur
     pub created_at: u64,
 }
 
@@ -125,6 +131,9 @@ impl Window {
             focused: false,
             z_order: 0,
             background_color: 0xFF000000, // Black with full alpha
+            alpha: 1.0,
+            has_shadow: true,
+            blur_radius: 0,
             created_at: 0,
         }
     }
@@ -154,10 +163,15 @@ impl Window {
     pub fn set_z_order(&mut self, z_order: u32) {
         self.z_order = z_order;
     }
+}
 
-    pub fn set_type(&mut self, window_type: WindowType) {
-        self.window_type = window_type;
-    }
+/// Compositor Layer for performance optimization
+#[derive(Debug, Clone)]
+pub struct CompositorLayer {
+    pub id: u32,
+    pub name: String,
+    pub active: bool,
+    pub alpha: f32,
 }
 
 /// Compositor - manages windows as graph nodes
@@ -166,6 +180,7 @@ pub struct Compositor {
     compositor_node: Option<NodeId>,
     gpu_capability: Option<Capability<RedoxGpuDriver>>,
     windows: BTreeMap<WindowId, Window>,
+    layers: Vec<CompositorLayer>,
     focused_window: Option<WindowId>,
     next_z_order: u32,
     screen_width: u32,
@@ -179,6 +194,11 @@ impl Compositor {
             compositor_node: None,
             gpu_capability: None,
             windows: BTreeMap::new(),
+            layers: vec![
+                CompositorLayer { id: 0, name: String::from("Background"), active: true, alpha: 1.0 },
+                CompositorLayer { id: 1, name: String::from("Applications"), active: true, alpha: 1.0 },
+                CompositorLayer { id: 2, name: String::from("Overlay"), active: true, alpha: 1.0 },
+            ],
             focused_window: None,
             next_z_order: 1,
             screen_width: 1920,
@@ -224,12 +244,22 @@ impl Compositor {
     /// Create a new window
     pub fn create_window(&mut self, title: String, rect: Rect) -> WindowId {
         let window_id = WindowId::new();
+        let window_name = format!("window_{}:{}", window_id.0, title);
         
         // Create window node in the graph
         let window_node = self.graph_kernel.create_node(
             NodeType::Window,
-            title.clone(),
+            window_name,
         );
+
+        // Add metadata to the window node
+        self.graph_kernel.invoke_node_operation_mut::<(), _, _>(window_node, |node| {
+            node.set_metadata(String::from("width"), format!("{}", rect.width));
+            node.set_metadata(String::from("height"), format!("{}", rect.height));
+            node.set_metadata(String::from("x"), format!("{}", rect.x));
+            node.set_metadata(String::from("y"), format!("{}", rect.y));
+            node.set_metadata(String::from("window_id"), format!("{}", window_id.0));
+        });
 
         // Connect window to compositor
         if let Some(compositor_node) = self.compositor_node {
@@ -407,16 +437,11 @@ impl Compositor {
     /// Render a specific region of a window (Theseus-style optimization)
     fn render_window_region(&self, gpu_cap: &Capability<RedoxGpuDriver>, window: &Window, region: &Rect) {
         invoke_capability_mut(gpu_cap, |gpu| {
-            let mut color = if window.focused {
+            let color = if window.focused {
                 0xFF3B82F6 // Blue when focused
             } else {
                 0xFF6B7280 // Gray when unfocused
             };
-
-            // For virtual windows (Seamless Mode), we use transparency
-            if window.window_type == WindowType::Virtual {
-                color = (color & 0x00FFFFFF) | 0x80000000; // 50% transparency
-            }
 
             // Draw window background region
             let _ = gpu.execute_command(&GpuContext(0),
@@ -430,22 +455,46 @@ impl Compositor {
         });
     }
 
-    /// Render a single window
+    /// Render a single window with Multi-Context Blending support
     fn render_window(&self, gpu_cap: &Capability<RedoxGpuDriver>, window: &Window) {
         invoke_capability_mut(gpu_cap, |gpu| {
             let rect = window.rect;
-            let mut color = if window.focused {
-                0xFF3B82F6 // Blue when focused
-            } else {
-                0xFF6B7280 // Gray when unfocused
+
+            // Determinar color base y estilo según el contexto (Soberano vs Invitado)
+            let (color, title_color) = match &window.window_type {
+                WindowType::ForeignOSApp { os_type } => {
+                    // Estética diferenciada para apps de otros SO (Modo Fluido)
+                    if os_type == "Windows" {
+                        (0xCC0078D4, 0xFF005A9E) // Azul Windows con transparencia
+                    } else if os_type == "Mac" {
+                        (0xCCAAAAAA, 0xFF777777) // Gris Apple con transparencia
+                    } else {
+                        (0xCC3B82F6, 0xFF1E40AF)
+                    }
+                },
+                _ => {
+                    if window.focused {
+                        (0xFF3B82F6, 0xFF1E40AF)
+                    } else {
+                        (0xFF6B7280, 0xFF4B5563)
+                    }
+                }
             };
 
-            // For virtual windows (Seamless Mode), we use transparency
-            if window.window_type == WindowType::Virtual {
-                color = (color & 0x00FFFFFF) | 0x80000000; // 50% transparency
+            // 1. Efecto de Sombra (si está activo)
+            if window.has_shadow {
+                let shadow_offset = 4;
+                let _ = gpu.execute_command(&GpuContext(0),
+                    GpuCommand::DrawRect {
+                        x: (rect.x + shadow_offset) as u32,
+                        y: (rect.y + shadow_offset) as u32,
+                        width: rect.width,
+                        height: rect.height,
+                        color: 0x44000000, // Sombra suave
+                    });
             }
 
-            // Draw window background
+            // 2. Renderizado de Fondo con Alpha Blending
             let _ = gpu.execute_command(&GpuContext(0),
                 GpuCommand::DrawRect {
                     x: rect.x as u32,
@@ -455,19 +504,8 @@ impl Compositor {
                     color,
                 });
 
-            // Draw window title bar (darker)
-            let title_bar_height = 24;
-            let mut title_color = if window.focused {
-                0xFF1E40AF // Darker blue
-            } else {
-                0xFF4B5563 // Darker gray
-            };
-
-            // Seamless windows might have integrated title bars or semi-transparent ones
-            if window.window_type == WindowType::Virtual {
-                title_color = (title_color & 0x00FFFFFF) | 0x99000000; // ~60% transparency
-            }
-
+            // 3. Barra de Título (Native Crystal Style)
+            let title_bar_height = 28;
             let _ = gpu.execute_command(&GpuContext(0),
                 GpuCommand::DrawRect {
                     x: rect.x as u32,

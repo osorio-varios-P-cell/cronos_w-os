@@ -25,8 +25,6 @@ pub enum WindowType {
     Menu,
     Tooltip,
     Splash,
-    /// Ventana de una aplicación virtualizada (Modo Fluido)
-    Virtual,
 }
 
 /// Atributos de ventana
@@ -141,7 +139,6 @@ impl Window {
             WindowType::Menu => WindowAttributes::default_menu(),
             WindowType::Tooltip => WindowAttributes::default_menu(),
             WindowType::Splash => WindowAttributes::default_menu(),
-            WindowType::Virtual => WindowAttributes::default_normal(),
         };
 
         Self {
