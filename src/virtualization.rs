@@ -17,6 +17,10 @@ pub enum OsType {
     Windows,
     /// Linux
     Linux,
+    /// macOS (Apple)
+    Mac,
+    /// Android (Subsystem)
+    Android,
     /// Otro sistema
     Other(String),
 }
@@ -212,6 +216,25 @@ impl VirtualMachine {
         Ok(())
     }
 
+    /// FASE 28: Gestión directa de estructuras VMCS/VMCB (Sovereign Hypervisor)
+    /// En lugar de usar comandos externos, CRONOS gestiona el estado de la CPU virtual
+    pub fn setup_vm_context(&mut self, graph_kernel: &GraphKernel) -> Result<(), String> {
+        // Si es macOS, registramos el nodo de hardware SMC (Apple)
+        if self.config.os_type == OsType::Mac {
+            let smc_node = graph_kernel.create_node(
+                NodeType::HardwareDevice(crate::graph_kernel::HardwareType::Acpi),
+                String::from("apple_smc_controller"),
+            );
+            if let Some(vm_node) = self.capability.map(|id| NodeId(id.0)) {
+                graph_kernel.create_edge(vm_node, smc_node, EdgeType::Dependency);
+            }
+        }
+        // En hardware real, aquí configuraríamos la estructura de control de VM (VMCS)
+        // vinculándola como un nodo de hardware crítico en el GraphKernel.
+        self.state = VmState::Initialized;
+        Ok(())
+    }
+
     /// Detener la VM
     pub fn stop(&mut self) -> Result<(), String> {
         if self.state != VmState::Running && self.state != VmState::Paused {
@@ -251,14 +274,6 @@ impl VirtualMachine {
         Ok(())
     }
 
-    /// FASE 28: Gestión directa de estructuras VMCS/VMCB (Sovereign Hypervisor)
-    /// En lugar de usar comandos externos, CRONOS gestiona el estado de la CPU virtual
-    pub fn setup_vm_context(&mut self) -> Result<(), String> {
-        // En hardware real, aquí configuraríamos la estructura de control de VM (VMCS)
-        // vinculándola como un nodo de hardware crítico en el GraphKernel.
-        self.state = VmState::Initialized;
-        Ok(())
-    }
 
     /// Generar el comando QEMU para iniciar la VM (Fallback para entornos sin VT-x)
     fn generate_qemu_command(&self) -> String {
@@ -313,6 +328,14 @@ impl VirtualMachine {
             }
             OsType::Linux => {
                 command.push_str(" -machine type=q35,accel=kvm");
+            }
+            OsType::Mac => {
+                // Configuración para macOS (Basado en patrones de OpenCore/OSX-KVM)
+                command.push_str(" -machine q35,accel=kvm -device isa-applesmc,osk=\"...\"");
+                command.push_str(" -cpu Penryn,vendor=GenuineIntel");
+            }
+            OsType::Android => {
+                command.push_str(" -machine type=q35,accel=kvm -device virtio-vga-gl");
             }
             OsType::Other(_) => {
                 command.push_str(" -machine type=pc");
