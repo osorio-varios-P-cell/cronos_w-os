@@ -266,7 +266,7 @@ pub extern "C" fn kernel_main(boot_info: &BootInfo) -> ! {
             }
 
             // Iniciar Shell Soberana
-            let shell = shell::SovereignShell::new(gk.clone());
+            let mut shell = shell::SovereignShell::new(gk.clone());
             shell.run();
         }
     }
