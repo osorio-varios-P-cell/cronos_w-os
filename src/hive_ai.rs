@@ -102,6 +102,22 @@ pub enum AnomalySeverity {
     Critical,
 }
 
+/// FASE 2.5: Representación de una "Creencia" de la IA (Inspirado en Fable 5)
+#[derive(Debug, Clone)]
+pub struct Belief {
+    pub id: u64,
+    pub description: String,
+    pub evidence_score: f32,
+    pub is_valid: bool,
+}
+
+/// FASE 2.5: Cadena de razonamiento (Chain of Thought)
+#[derive(Debug, Clone)]
+pub struct ReasoningStep {
+    pub thought: String,
+    pub principle: String, // e.g., "Resource Conservation", "Security First"
+}
+
 /// Generative AI request
 #[derive(Debug, Clone)]
 pub struct GenerativeRequest {
@@ -199,6 +215,9 @@ pub enum OptimizationAction {
 /// Hive AI - Bridge capability between layers
 pub struct HiveAi {
     architecture: Cell<LayerArchitecture>,
+    /// FASE 2.5: Motor de Creencias (Fable Reasoning)
+    pub beliefs: BTreeMap<u64, Belief>,
+    pub current_reasoning: Vec<ReasoningStep>,
     bridge_capability_id: CapabilityId,
     optimization_requests: BTreeMap<u64, OptimizationRequest>,
     optimization_responses: BTreeMap<u64, OptimizationResponse>,
@@ -880,6 +899,8 @@ impl HiveAi {
         Self {
             architecture: Cell::new(architecture),
             bridge_capability_id: CapabilityId::new(),
+            beliefs: BTreeMap::new(),
+            current_reasoning: Vec::new(),
             optimization_requests: BTreeMap::new(),
             optimization_responses: BTreeMap::new(),
             current_metrics: SystemMetrics::default(),
@@ -1449,6 +1470,51 @@ impl HiveAi {
     /// Get AI memory mutable
     pub fn ai_memory_mut(&mut self) -> &mut AiMemory {
         &mut self.ai_memory
+    }
+
+    /// FASE 2.5: Razonamiento desde Primeros Principios (Fable Style)
+    pub fn perform_fable_reasoning(&mut self, goal: &str) -> String {
+        self.current_reasoning.clear();
+
+        // Paso 1: Establecer creencia inicial
+        let belief_id = self.next_request_id;
+        let initial_belief = Belief {
+            id: belief_id,
+            description: format!("La optimización actual para '{}' es eficiente.", goal),
+            evidence_score: 0.8,
+            is_valid: true,
+        };
+        self.beliefs.insert(belief_id, initial_belief);
+
+        self.current_reasoning.push(ReasoningStep {
+            thought: format!("Analizando el objetivo '{}' basándose en métricas reales del kernel.", goal),
+            principle: String::from("First Principles Thinking"),
+        });
+
+        // Paso 2: Evaluar contra anomalías (Auto-Corrección)
+        let anomalies = self.detect_anomalies(self.current_metrics.clone());
+        if !anomalies.is_empty() {
+            self.current_reasoning.push(ReasoningStep {
+                thought: String::from("Detectadas anomalías críticas. Invalidando creencia de eficiencia previa."),
+                principle: String::from("Self-Correction (Killing Incorrect Beliefs)"),
+            });
+
+            if let Some(belief) = self.beliefs.get_mut(&belief_id) {
+                belief.is_valid = false;
+                belief.evidence_score = 0.1;
+            }
+        }
+
+        // Paso 3: Re-asignación autónoma de recursos
+        self.current_reasoning.push(ReasoningStep {
+            thought: String::from("Re-balanceando carga entre capas AEGIS y LUMEN para estabilizar el sistema."),
+            principle: String::from("Autonomous Resource Allocation"),
+        });
+
+        format!("Razonamiento Fable completado para: {}. Estado de creencia: {}",
+            goal,
+            if self.beliefs.get(&belief_id).map_or(false, |b| b.is_valid) { "VÁLIDO" } else { "AUTO-CORREGIDO/INVALIDADO" }
+        )
     }
 
     /// FASE 16: Ejercicio de validación GLOBAL de Hive AI

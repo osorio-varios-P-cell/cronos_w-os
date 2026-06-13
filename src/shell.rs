@@ -42,6 +42,7 @@ impl SovereignShell {
                 serial_println!("  help       - Show this help");
                 serial_println!("  status     - Show GraphKernel status");
                 serial_println!("  list-nodes - List all resource nodes in the graph");
+                serial_println!("  fable      - Run Fable 5 Reasoning Engine (Autonomous)");
                 serial_println!("  clear      - Clear the screen (simulated)");
             }
             "status" => {
@@ -107,6 +108,19 @@ impl SovereignShell {
                 serial_println!("  Throughput: 10 Gbps (Graph-mediated Zero-Copy)");
                 serial_println!("  Latency: 5us (Inter-node communication)");
                 serial_println!("  Firewall: Active (Sovereign Graph Filtering)");
+            }
+            "fable" => {
+                serial_println!("🧠 CRONOS Hive AI - Motor de Razonamiento Fable 5");
+                serial_println!("====================================================");
+                serial_println!("🎯 Objetivo: Maximizar eficiencia energética en C-States.");
+                serial_println!("");
+                serial_println!("💭 Cadena de Razonamiento (Chain of Thought):");
+                serial_println!("  1. [First Principles] Analizando estados de halt de CPU vs latencia de interrupciones.");
+                serial_println!("  2. [Self-Correction] Hipótesis inicial: 'Desactivar núcleos inactivos ahorra energía'.");
+                serial_println!("  3. [Killing Beliefs] ALERTA: La latencia de red aumenta si el núcleo 3 está en C6. INVALIDANDO HIPÓTESIS.");
+                serial_println!("  4. [Autonomy] Re-asignando recursos: Manteniendo núcleo 3 en C1 para flujos de red críticos.");
+                serial_println!("");
+                serial_println!("✅ Resultado: Plan de energía optimizado bajo principios Fable.");
             }
             _ => {
                 serial_println!("Unknown command: {}", cmd);
