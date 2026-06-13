@@ -74,6 +74,11 @@ pub enum NodeType {
     SecurityObject,
     /// Virtualization resource (Hypervisor/VM/Container)
     VirtualizationResource,
+    /// FASE 2.4: Knowledge Node (Second Brain - Obsidian Style)
+    KnowledgeNode {
+        category: String,
+        tags: Vec<String>,
+    },
     /// Generic resource
     Generic(String),
 }
@@ -114,6 +119,8 @@ pub enum EdgeType {
     DmaMapping,
     /// Virtualization mapping (EPT/NPT)
     VirtualMapping,
+    /// FASE 2.4: Bidirectional reference (Knowledge Graph)
+    BidirectionalLink,
     /// Generic operation
     Generic(String),
 }

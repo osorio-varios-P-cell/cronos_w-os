@@ -6,7 +6,7 @@
 
 use crate::layers::{Layer, LayerArchitecture};
 use crate::capability::{Capability, Cell, CapabilityId, CapabilityRights, invoke_capability, invoke_capability_mut};
-use crate::graph_kernel::{GraphKernel, GraphStats};
+use crate::graph_kernel::{GraphKernel, GraphStats, NodeId};
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::string::{String, ToString};
 use alloc::format;
@@ -44,6 +44,8 @@ pub enum GenerativeRequestType {
     WebContentGeneration,
     /// Analyze and summarize
     Analysis,
+    /// FASE 2.4: Knowledge Graph Query (Dataview style)
+    KnowledgeQuery,
 }
 
 /// System metrics for AI analysis
@@ -144,6 +146,8 @@ pub struct AiMemory {
     pub conversation_history: Vec<(String, String)>,
     pub learned_patterns: BTreeMap<String, String>,
     pub user_preferences: BTreeMap<String, String>,
+    /// FASE 2.4: Obsidian-style Neural Vault (Markdown notes mapped to nodes)
+    pub neural_vault: BTreeMap<String, NodeId>,
 }
 
 impl AiMemory {
@@ -152,6 +156,7 @@ impl AiMemory {
             conversation_history: Vec::new(),
             learned_patterns: BTreeMap::new(),
             user_preferences: BTreeMap::new(),
+            neural_vault: BTreeMap::new(),
         }
     }
 
@@ -1390,6 +1395,9 @@ impl HiveAi {
             GenerativeRequestType::Analysis => {
                 self.analyze_content(&request.prompt, &request.context)
             }
+            GenerativeRequestType::KnowledgeQuery => {
+                self.execute_dataview_query(&request.prompt)
+            }
         };
 
         GenerativeResponse {
@@ -1457,6 +1465,27 @@ impl HiveAi {
         format!("Análisis de '{}': El contenido presenta características típicas de un sistema moderno. Se recomienda optimizar el rendimiento y mejorar la seguridad según las políticas de CRONOS W-OS.", prompt)
     }
 
+    /// FASE 2.4: Execute Dataview-style query over the knowledge graph
+    fn execute_dataview_query(&self, query: &str) -> String {
+        // Prototype: LIST nodes WHERE type = KnowledgeNode
+        if query.contains("LIST") && query.contains("KnowledgeNode") {
+            let mut result = String::from("| Node ID | Name | Category |\n| --- | --- | --- |\n");
+            invoke_capability(&self.architecture(), |arch| {
+                let gk = arch.graph_kernel();
+                invoke_capability(&gk.graph_capability(), |graph| {
+                    for node in graph.nodes.values() {
+                        if let crate::graph_kernel::NodeType::KnowledgeNode { category, .. } = &node.node_type {
+                            result.push_str(&format!("| {:?} | {} | {} |\n", node.id, node.name, category));
+                        }
+                    }
+                });
+            });
+            return result;
+        }
+
+        format!("Query '{}' ejecutada. No se encontraron resultados específicos en el prototipo Dataview.", query)
+    }
+
     /// Get generative response
     pub fn get_generative_response(&self, request_id: u64) -> Option<&GenerativeResponse> {
         self.generative_responses.get(&request_id)
@@ -1505,9 +1534,15 @@ impl HiveAi {
             }
         }
 
-        // Paso 3: Re-asignación autónoma de recursos
+        // Paso 3: Consultar el Grafo de Conocimiento (Neural Interlinking)
         self.current_reasoning.push(ReasoningStep {
-            thought: String::from("Re-balanceando carga entre capas AEGIS y LUMEN para estabilizar el sistema."),
+            thought: String::from("Consultando 'Neural Vault' para buscar patrones de optimización documentados por el usuario."),
+            principle: String::from("Neural Interlinking (Obsidian Style)"),
+        });
+
+        // Paso 4: Re-asignación autónoma de recursos
+        self.current_reasoning.push(ReasoningStep {
+            thought: String::from("Re-balanceando carga entre capas AEGIS y LUMEN basándose en el contexto del Segundo Cerebro."),
             principle: String::from("Autonomous Resource Allocation"),
         });
 

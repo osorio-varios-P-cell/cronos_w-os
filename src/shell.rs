@@ -42,6 +42,8 @@ impl SovereignShell {
                 serial_println!("  help       - Show this help");
                 serial_println!("  status     - Show GraphKernel status");
                 serial_println!("  list-nodes - List all resource nodes in the graph");
+                serial_println!("  dataview   - Run Obsidian-style Knowledge Query");
+                serial_println!("  brain-init - Initialize neural interlinking for existing files");
                 serial_println!("  fable      - Run Fable 5 Reasoning Engine (Autonomous)");
                 serial_println!("  clear      - Clear the screen (simulated)");
             }
@@ -108,6 +110,41 @@ impl SovereignShell {
                 serial_println!("  Throughput: 10 Gbps (Graph-mediated Zero-Copy)");
                 serial_println!("  Latency: 5us (Inter-node communication)");
                 serial_println!("  Firewall: Active (Sovereign Graph Filtering)");
+            }
+            "dataview" => {
+                serial_println!("--- Hive Dataview (Second Brain Interface) ---");
+                serial_println!("QUERY: LIST nodes WHERE type = KnowledgeNode");
+
+                crate::capability::invoke_capability(&self.graph_kernel.graph_capability(), |graph| {
+                    serial_println!("| Node ID | Name | Category |");
+                    serial_println!("| --- | --- | --- |");
+                    for node in graph.nodes.values() {
+                        if let crate::graph_kernel::NodeType::KnowledgeNode { category, .. } = &node.node_type {
+                            serial_println!("| {:?} | {} | {} |", node.id, node.name, category);
+                        }
+                    }
+                });
+            }
+            "brain-init" => {
+                serial_println!("🧬 Inicializando 'Neural Interlinking'...");
+                let nodes = [
+                    ("Sovereign_Kernel.md", "CoreArchitecture"),
+                    ("Aegis_Security.md", "Security"),
+                    ("Lumen_Graphics.md", "UI/UX"),
+                    ("Hive_AI_Notes.md", "Intelligence"),
+                ];
+
+                for (name, cat) in nodes {
+                    let id = self.graph_kernel.create_node(
+                        crate::graph_kernel::NodeType::KnowledgeNode {
+                            category: String::from(cat),
+                            tags: alloc::vec![format!("#{}", cat.to_lowercase())]
+                        },
+                        String::from(name)
+                    );
+                    serial_println!("  [+] Vinculado: {} -> ID:{:?}", name, id);
+                }
+                serial_println!("✅ Cerebro Digital inicializado exitosamente.");
             }
             "fable" => {
                 serial_println!("🧠 CRONOS Hive AI - Motor de Razonamiento Fable 5");
