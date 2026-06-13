@@ -104,6 +104,7 @@ mod agent_security;
 mod production_deployment;
 mod browser_automation;
 mod shell;
+mod guest_integration;
 mod redox_drivers;
 mod redox_ext4;
 mod cosmic_compositor;

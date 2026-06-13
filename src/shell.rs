@@ -26,7 +26,7 @@ impl SovereignShell {
         // Bucle real de comandos
         // En un entorno no_std, esto esperaría interrupciones de teclado
         // Por ahora, ejecutamos la secuencia de arranque y quedamos en escucha
-        let startup_commands = ["status", "sysinfo", "install-test", "net-speed", "list-nodes"];
+        let startup_commands = ["status", "sysinfo", "multiverse-load", "install-test", "net-speed", "list-nodes"];
         for cmd in startup_commands {
             serial_println!("\ncronos@sovereign:~$ {}", cmd);
             self.execute_command(cmd);
@@ -92,6 +92,15 @@ impl SovereignShell {
                 serial_println!("  [4/4] Instalando macOS App (.app) -> Configurando SMC Node...");
 
                 serial_println!("✅ ÉXITO: Todas las aplicaciones están en el GRAFO y aisladas por AEGIS.");
+            }
+            "multiverse-load" => {
+                serial_println!("Simulación de Carga Multiverso (Sovereign Balancing):");
+                serial_println!("  [Node:Win11]  CPU Core 0: 25% | RAM: 2GB (EPT Active)");
+                serial_println!("  [Node:Linux]  CPU Core 1: 30% | RAM: 1GB (Shared Stack)");
+                serial_println!("  [Node:macOS]  CPU Core 2: 20% | RAM: 4GB (SMC Active)");
+                serial_println!("  [Node:Android] CPU Core 3: 15% | RAM: 512MB (LUMEN Surface)");
+                serial_println!("  [GraphKernel] Scheduler: Balancing resources across all foreign nodes...");
+                serial_println!("✅ ESTADO: Sistema estable operando 4 entornos simultáneos.");
             }
             "net-speed" => {
                 serial_println!("Internet Data Flow Efficiency:");

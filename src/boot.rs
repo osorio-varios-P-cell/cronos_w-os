@@ -50,6 +50,13 @@ static REQUESTS_END: RequestsEndMarker = RequestsEndMarker::new();
 
 /// Información de boot parseada del bootloader
 #[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct UsableRegion {
+    pub base: u64,
+    pub length: u64,
+}
+
+#[repr(C)]
 #[derive(Debug)]
 pub struct BootInfo {
     /// Memoria física disponible
@@ -62,6 +69,8 @@ pub struct BootInfo {
     pub framebuffer: Option<FramebufferInfo>,
     /// RSDP para ACPI
     pub rsdp: Option<u64>,
+    /// Regiones de memoria usables para el heap
+    pub usable_regions: [Option<UsableRegion>; 16],
 }
 
 /// Información del framebuffer
@@ -130,12 +139,27 @@ impl BootInfo {
             0
         };
 
+        let mut usable_regions = [None; 16];
+        let mut region_idx = 0;
+        if let Some(memmap) = MEMMAP_REQUEST.response() {
+            for entry in memmap.entries() {
+                if entry.type_ == limine::memmap::MEMMAP_USABLE && region_idx < 16 {
+                    usable_regions[region_idx] = Some(UsableRegion {
+                        base: entry.base,
+                        length: entry.length,
+                    });
+                    region_idx += 1;
+                }
+            }
+        }
+
         BootInfo {
             available_memory,
             total_memory,
             hhdm_offset,
             framebuffer,
             rsdp,
+            usable_regions,
         }
     }
 }

@@ -95,6 +95,8 @@ pub enum WindowType {
     Dialog,
     /// Android Application window (integrated via Android Subsystem)
     AndroidApp,
+    /// Foreign OS Window (from Virtualization context)
+    ForeignOSApp { os_type: String },
 }
 
 /// Window in the compositor
@@ -453,17 +455,46 @@ impl Compositor {
         });
     }
 
-    /// Render a single window
+    /// Render a single window with Multi-Context Blending support
     fn render_window(&self, gpu_cap: &Capability<RedoxGpuDriver>, window: &Window) {
         invoke_capability_mut(gpu_cap, |gpu| {
             let rect = window.rect;
-            let color = if window.focused {
-                0xFF3B82F6 // Blue when focused
-            } else {
-                0xFF6B7280 // Gray when unfocused
+
+            // Determinar color base y estilo según el contexto (Soberano vs Invitado)
+            let (color, title_color) = match &window.window_type {
+                WindowType::ForeignOSApp { os_type } => {
+                    // Estética diferenciada para apps de otros SO (Modo Fluido)
+                    if os_type == "Windows" {
+                        (0xCC0078D4, 0xFF005A9E) // Azul Windows con transparencia
+                    } else if os_type == "Mac" {
+                        (0xCCAAAAAA, 0xFF777777) // Gris Apple con transparencia
+                    } else {
+                        (0xCC3B82F6, 0xFF1E40AF)
+                    }
+                },
+                _ => {
+                    if window.focused {
+                        (0xFF3B82F6, 0xFF1E40AF)
+                    } else {
+                        (0xFF6B7280, 0xFF4B5563)
+                    }
+                }
             };
 
-            // Draw window background
+            // 1. Efecto de Sombra (si está activo)
+            if window.has_shadow {
+                let shadow_offset = 4;
+                let _ = gpu.execute_command(&GpuContext(0),
+                    GpuCommand::DrawRect {
+                        x: (rect.x + shadow_offset) as u32,
+                        y: (rect.y + shadow_offset) as u32,
+                        width: rect.width,
+                        height: rect.height,
+                        color: 0x44000000, // Sombra suave
+                    });
+            }
+
+            // 2. Renderizado de Fondo con Alpha Blending
             let _ = gpu.execute_command(&GpuContext(0),
                 GpuCommand::DrawRect {
                     x: rect.x as u32,
@@ -473,14 +504,8 @@ impl Compositor {
                     color,
                 });
 
-            // Draw window title bar (darker)
-            let title_bar_height = 24;
-            let title_color = if window.focused {
-                0xFF1E40AF // Darker blue
-            } else {
-                0xFF4B5563 // Darker gray
-            };
-
+            // 3. Barra de Título (Native Crystal Style)
+            let title_bar_height = 28;
             let _ = gpu.execute_command(&GpuContext(0),
                 GpuCommand::DrawRect {
                     x: rect.x as u32,

@@ -41,11 +41,23 @@ use crate::boot::BootInfo;
 
 pub fn init_allocator(boot_info: &BootInfo) {
     unsafe {
-        // Usar el HHDM offset proporcionado por Limine para ubicar el heap de forma segura
-        // Evitamos direcciones estáticas que pueden colisionar con el kernel o módulos
-        let heap_start = boot_info.hhdm_offset + 0x2000000;
-        let heap_size = 32 * 1024 * 1024; // 32MB heap soberano
+        // BUG #16 Corregido: Buscar una región usable real en el mapa de memoria
+        // En lugar de una dirección estática, usamos la primera región usable >= 32MB
+        let heap_size = 32 * 1024 * 1024;
+        let mut heap_start = 0;
 
-        ALLOCATOR.lock().init(heap_start as *mut u8, heap_size);
+        for region in boot_info.usable_regions.iter().flatten() {
+            if region.length >= heap_size as u64 {
+                heap_start = boot_info.hhdm_offset + region.base;
+                break;
+            }
+        }
+
+        if heap_start != 0 {
+            ALLOCATOR.lock().init(heap_start as *mut u8, heap_size);
+        } else {
+            // Fallback de emergencia si no hay regiones grandes (no debería ocurrir en HW real)
+            ALLOCATOR.lock().init((boot_info.hhdm_offset + 0x2000000) as *mut u8, heap_size);
+        }
     }
 }
