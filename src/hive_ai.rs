@@ -1501,6 +1501,25 @@ impl HiveAi {
         &mut self.ai_memory
     }
 
+    /// FASE 2.7: Cargar Perfil de Experto (Trading, Ciencia, Filosofía)
+    pub fn load_expert_profile(&mut self, profile: &str) -> String {
+        match profile {
+            "trading" => {
+                self.ai_memory.set_preference(String::from("analysis_mode"), String::from("Technical_Indicators"));
+                String::from("Perfil de Trading cargado: Análisis de mercados y gestión de riesgo activada.")
+            },
+            "chemistry" => {
+                self.ai_memory.set_preference(String::from("logic_mode"), String::from("Molecular_Synthesis"));
+                String::from("Perfil de Química cargado: Simulación de reacciones y base de datos ArXiv activada.")
+            },
+            "philosophy" => {
+                self.ai_memory.set_preference(String::from("reasoning_mode"), String::from("Dialectics"));
+                String::from("Perfil de Filosofía cargado: Razonamiento crítico y lógica de causación activa.")
+            },
+            _ => format!("Perfil '{}' no reconocido. Usando General Intelligence.", profile),
+        }
+    }
+
     /// FASE 2.5: Razonamiento desde Primeros Principios (Fable Style)
     pub fn perform_fable_reasoning(&mut self, goal: &str) -> String {
         self.current_reasoning.clear();

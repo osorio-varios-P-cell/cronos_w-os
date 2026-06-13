@@ -158,6 +158,9 @@ mod bitmap_frame_allocator;
 mod neural_fable_tests;
 mod hive_multiversal;
 mod hardware_bridge;
+mod hive_swarm;
+mod resource_orchestrator;
+mod media_engine;
 // FASE 13: Módulos de networking y filesystem
 mod fat32_fs;
 
