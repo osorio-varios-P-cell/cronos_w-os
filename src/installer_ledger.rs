@@ -55,9 +55,14 @@ impl InstallerLedger {
         });
     }
 
+    /// FASE 3.2: Identificar huella digital de hardware desconocido
+    pub fn fingerprint_unknown_hardware(&self, vendor_id: u16, device_id: u16) -> String {
+        format!("FINGERPRINT: VID_{:04X}:PID_{:04X} -> Buscando coincidencia en bases científicas...", vendor_id, device_id)
+    }
+
     /// Generar reporte Murphy para extracción externa
     pub fn generate_murphy_report(&self) -> String {
-        let mut report = String::from("--- CRONOS MURPHY INSTALLER REPORT ---\n");
+        let mut report = String::from("--- CRONOS MURPHY INSTALLER REPORT v3.2 ---\n");
         for event in &self.events {
             report.push_str(&format!("[{}] {}: {} -> {}\n", event.timestamp, event.component, event.status, event.details));
         }
