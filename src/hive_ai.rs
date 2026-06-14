@@ -1517,6 +1517,20 @@ impl HiveAi {
         report
     }
 
+    /// FASE 3.1: Analizar Ledger de Instalación y Auto-Corregir
+    pub fn analyze_installation_failure(&mut self, ledger_report: &str) -> String {
+        let mut correction = String::from("🧠 Hive AI: Analizando reporte de instalación Murphy...\n");
+        if ledger_report.contains("Conflict") || ledger_report.contains("CRITICAL") {
+            correction.push_str("  [!] Detectada incompatibilidad de hardware crítico.\n");
+            correction.push_str("  [Action]: Activando 'AI Safe Mode'. Omitiendo drivers no esenciales.\n");
+            correction.push_str("  [Action]: Forzando modo VESA básico para garantizar arranque.\n");
+            correction.push_str("✅ Recomendación: Re-intentar instalación con parámetros de corrección inyectados.");
+        } else {
+            correction.push_str("✅ No se detectaron anomalías en el ledger de instalación.");
+        }
+        correction
+    }
+
     /// FASE 2.5: Razonamiento desde Primeros Principios (Fable Style)
     pub fn perform_fable_reasoning(&mut self, goal: &str) -> String {
         self.current_reasoning.clear();

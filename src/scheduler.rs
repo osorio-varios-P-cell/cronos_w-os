@@ -208,6 +208,8 @@ pub struct Scheduler {
     pub next_process_id: u64,
     /// Referencia al graph kernel
     pub graph_kernel: Option<Cell<GraphKernel>>,
+    /// FASE 3.1: Proceso/Ventana con foco para Boosting adaptativo
+    pub focused_process_id: Option<u64>,
     /// Estadísticas del scheduler
     pub stats: SchedulerStats,
 }
@@ -248,7 +250,21 @@ impl Scheduler {
             config,
             next_process_id: 1,
             graph_kernel: None,
+            focused_process_id: None,
             stats: SchedulerStats::default(),
+        }
+    }
+
+    /// FASE 3.1: Boosting adaptativo para aplicaciones en primer plano
+    pub fn set_foreground_process(&mut self, process_id: u64) {
+        self.focused_process_id = Some(process_id);
+        if let Some(process) = self.get_process_mut(process_id) {
+            // Boosting temporal: Si es Normal, subir a High. Si es Low, subir a Normal.
+            process.priority = match process.priority {
+                ProcessPriority::Normal => ProcessPriority::High,
+                ProcessPriority::Low => ProcessPriority::Normal,
+                p => p, // Mantener Realtime o High
+            };
         }
     }
 
