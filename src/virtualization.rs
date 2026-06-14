@@ -214,21 +214,7 @@ impl VirtualMachine {
         }
     }
 
-    /// Configurar EPT (Extended Page Tables) en el grafo de recursos
-    pub fn setup_ept(&mut self, graph_kernel: &GraphKernel) -> Result<(), String> {
-        if let Some(vm_node) = self.capability.map(|id| NodeId(id.0)) { // Simplificación de ID
-            let ept_node = graph_kernel.create_node(
-                NodeType::MemoryRegion,
-                format!("ept_{}", self.config.name),
-            );
 
-            // Vincular EPT a la VM como una arista de mapeo virtual (estilo 2024)
-            graph_kernel.create_edge(vm_node, ept_node, EdgeType::VirtualMapping);
-            Ok(())
-        } else {
-            Err(String::from("VM node not found in graph"))
-        }
-    }
 
     /// Iniciar la VM
     pub fn start(&mut self) -> Result<(), String> {
