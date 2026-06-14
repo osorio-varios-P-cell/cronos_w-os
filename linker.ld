@@ -3,33 +3,33 @@ ENTRY(_start)
 SECTIONS {
     . = 1M;
 
-    .boot :
+    .boot : ALIGN(4K)
     {
         *(.boot)
     }
 
-    .text :
+    .text : ALIGN(4K)
     {
         *(.text .text.*)
     }
 
-    .rodata :
+    .rodata : ALIGN(4K)
     {
         *(.rodata .rodata.*)
     }
 
-    .data :
+    .data : ALIGN(4K)
     {
         *(.data .data.*)
     }
 
-    .bss :
+    .bss : ALIGN(4K)
     {
         *(COMMON)
         *(.bss .bss.*)
     }
 
-    . = ALIGN(16);
+    . = ALIGN(4K);
     __heap_start = .;
     . += 16M;
     __heap_end = .;
