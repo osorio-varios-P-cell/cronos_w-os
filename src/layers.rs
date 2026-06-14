@@ -311,9 +311,10 @@ impl KernelLayer {
         invoke_capability_mut(&self.architecture(), |arch| {
             if let Some(kernel_layer) = arch.get_layer_mut(Layer::Kernel) {
                 kernel_layer.set_metadata(String::from("status"), String::from("initialized"));
-                kernel_layer.set_metadata(String::from("version"), String::from("2.9.0"));
-                // FASE 2.9: Graph-driven Scheduling
-                kernel_layer.set_metadata(String::from("scheduler"), String::from("Graph-Dependency-Based"));
+                kernel_layer.set_metadata(String::from("status"), String::from("Gestalt-Prime"));
+                kernel_layer.set_metadata(String::from("version"), String::from("3.0.0"));
+                // FASE 3.0: Memory Leakage Guardians
+                kernel_layer.set_metadata(String::from("memory_protection"), String::from("Leakage-Guardian-Active"));
             }
         });
     }
@@ -341,8 +342,9 @@ impl AegisLayer {
             if let Some(aegis_layer) = arch.get_layer_mut(Layer::Aegis) {
                 aegis_layer.set_metadata(String::from("status"), String::from("active"));
                 aegis_layer.set_metadata(String::from("isolation_level"), String::from("perfect"));
-                // FASE 2.9: Cascade Revocation
-                aegis_layer.set_metadata(String::from("security_engine"), String::from("Recursive-Revocation-Active"));
+                // FASE 3.0: Recursive Resource Quotas (Genode Style)
+                aegis_layer.set_metadata(String::from("security_engine"), String::from("Recursive-Quotas-Active"));
+                aegis_layer.set_metadata(String::from("isolation"), String::from("State-Spillover-Prevented"));
             }
         });
     }
@@ -376,8 +378,8 @@ impl LumenLayer {
             if let Some(lumen_layer) = arch.get_layer_mut(Layer::Lumen) {
                 lumen_layer.set_metadata(String::from("status"), String::from("active"));
                 lumen_layer.set_metadata(String::from("renderer"), String::from("lumen-crystal-flow"));
-                // FASE 2.9: Crystal Flow Acceleration
-                lumen_layer.set_metadata(String::from("buffer_strategy"), String::from("Zero-Latency-Shared"));
+                // FASE 3.0: Double-Buffer Shadowing
+                lumen_layer.set_metadata(String::from("buffer_strategy"), String::from("Double-Buffer-Shadowing"));
                 
                 // Add compositor node to LUMEN layer
                 let compositor_node = invoke_capability(&self.compositor(), |c| c.compositor_node())

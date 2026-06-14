@@ -144,6 +144,7 @@ mod android_avd;
 mod vm_program_installer;
 mod layer_robustness;
 mod intrusion_detection;
+mod stress_tests;
 mod gpu_drivers_real;
 mod multi_agent;
 mod autonomous_system;

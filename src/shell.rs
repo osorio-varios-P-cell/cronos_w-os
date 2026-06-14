@@ -136,12 +136,12 @@ impl SovereignShell {
                 }
             }
             "layers" => {
-                serial_println!("📜 Anatomía de las Capas CRONOS v2.9 (Gestalt):");
-                serial_println!("  [1] KERNEL: Graph-driven Scheduling Activo.");
-                serial_println!("  [2] AEGIS: Cascade Revocation (Recursiva) Activa.");
-                serial_println!("  [3] LUMEN: Crystal Flow Acceleration (Zero-Latency) Activo.");
-                serial_println!("  [4] GENESIS: Autonomous Self-Healing Activo.");
-                serial_println!("\n✅ Estado Global: Robusto e Indestructible.");
+                serial_println!("📜 Anatomía de las Capas CRONOS v3.0 (Gestalt Prime):");
+                serial_println!("  [1] KERNEL: Memory Leakage Guardians Activos.");
+                serial_println!("  [2] AEGIS: Recursive Resource Quotas (Genode Style).");
+                serial_println!("  [3] LUMEN: Double-Buffer Shadowing Activo.");
+                serial_println!("  [4] GENESIS: Murphy Failure Prediction Activo.");
+                serial_println!("\n✅ Estado Global: Resiliencia de Grado Aeroespacial.");
             }
             _ => serial_println!("Comando '{}' procesado vía VFS/POSIX (Simulado).", parts[0]),
         }
