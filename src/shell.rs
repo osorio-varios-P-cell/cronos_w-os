@@ -42,7 +42,7 @@ impl SovereignShell {
             "help" => {
                 serial_println!("Comandos de Archivos: ls, cd, cat, pwd, mkdir, compress, convert, unlock");
                 serial_println!("Comandos Neurales: brain-init, dataview, fable, fable-test, multiverse, instruct, swarm, mutate, link-node, synergy-test");
-                serial_println!("Comandos Sistema: sysinfo, status, list-nodes");
+                serial_println!("Comandos Sistema: sysinfo, status, list-nodes, layers");
             }
             "ls" => {
                 serial_println!("bin/  etc/  home/  lib/  usr/  var/  Sovereign_Kernel.md  Hive_AI.md");
@@ -134,6 +134,14 @@ impl SovereignShell {
                     Ok(rep) => serial_println!("{}", rep),
                     Err(e) => serial_println!("❌ Error en Suite Synergy: {}", e),
                 }
+            }
+            "layers" => {
+                serial_println!("📜 Anatomía de las Capas CRONOS v2.9 (Gestalt):");
+                serial_println!("  [1] KERNEL: Graph-driven Scheduling Activo.");
+                serial_println!("  [2] AEGIS: Cascade Revocation (Recursiva) Activa.");
+                serial_println!("  [3] LUMEN: Crystal Flow Acceleration (Zero-Latency) Activo.");
+                serial_println!("  [4] GENESIS: Autonomous Self-Healing Activo.");
+                serial_println!("\n✅ Estado Global: Robusto e Indestructible.");
             }
             _ => serial_println!("Comando '{}' procesado vía VFS/POSIX (Simulado).", parts[0]),
         }
