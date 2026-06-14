@@ -201,6 +201,7 @@ pub extern "C" fn kernel_main(boot_info: &BootInfo) -> ! {
     gdt::init_gdt();
     interrupts::init_idt();
     interrupts::init_pics();
+    ps2::Ps2Keyboard::initialize();
     x86_64::instructions::interrupts::enable();
 
     // Inicializar hardware real (PCI y ACPI)
@@ -250,6 +251,7 @@ pub extern "C" fn kernel_main(boot_info: &BootInfo) -> ! {
                 } else if dev.class_id == 0x0C && dev.subclass_id == 0x03 { // xHCI (USB 3.0)
                     let mut xhci = usb_xhci::XhciController::new(boot_info.hhdm_offset + bar0);
                     if xhci.initialize().is_ok() {
+                        xhci.probe_ports();
                         let xhci_node = gk.create_node(
                             graph_kernel::NodeType::HardwareDevice(graph_kernel::HardwareType::Xhci),
                             format!("xhci_{:02x}:{:02x}", dev.bus, dev.device),

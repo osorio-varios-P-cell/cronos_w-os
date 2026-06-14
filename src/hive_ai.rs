@@ -1465,6 +1465,19 @@ impl HiveAi {
         format!("Análisis de '{}': El contenido presenta características típicas de un sistema moderno. Se recomienda optimizar el rendimiento y mejorar la seguridad según las políticas de CRONOS W-OS.", prompt)
     }
 
+    /// FASE 3.3: Motor de Análisis de Contexto real (Markdown Parser)
+    pub fn parse_markdown_context(&self, content: &str) -> BTreeMap<String, String> {
+        let mut metadata = BTreeMap::new();
+        for line in content.lines() {
+            if line.starts_with("#tag: ") {
+                metadata.insert(String::from("tags"), line[6..].to_string());
+            } else if line.starts_with("#priority: ") {
+                metadata.insert(String::from("priority"), line[11..].to_string());
+            }
+        }
+        metadata
+    }
+
     /// FASE 2.4: Execute Dataview-style query over the knowledge graph
     fn execute_dataview_query(&self, query: &str) -> String {
         // Prototype: LIST nodes WHERE type = KnowledgeNode

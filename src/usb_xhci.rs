@@ -41,4 +41,22 @@ impl XhciController {
         }
         Ok(())
     }
+
+    /// FASE 3.3: Escanear puertos buscando dispositivos HID
+    pub fn probe_ports(&self) {
+        unsafe {
+            let op_base = self.base_addr + self.cap_length as u64;
+            // Leer número de puertos desde CAPPARAMS
+            let hcsparams1 = read_volatile((self.base_addr + 0x04) as *const u32);
+            let num_ports = (hcsparams1 >> 24) & 0xFF;
+
+            for i in 0..num_ports {
+                let port_reg = op_base + 0x400 + (i as u64 * 0x10);
+                let status = read_volatile(port_reg as *const u32);
+                if status & 0x01 != 0 {
+                    crate::serial_println!("[USB] Dispositivo detectado en puerto {}. Inicializando canal de datos...", i);
+                }
+            }
+        }
+    }
 }
