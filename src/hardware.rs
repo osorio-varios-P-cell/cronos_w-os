@@ -258,3 +258,19 @@ pub struct MsrState {
     /// MSR de VMX
     pub vmx_msr: u64,
 }
+
+impl PciDevice {
+    pub fn get_bar0_addr(&self) -> u64 {
+        unsafe {
+            let addr = crate::pci::PciConfigAddress::new(self.bus, self.device, self.function, 0x10);
+            let bar = crate::pci::pci_read_config_u32(addr);
+            if bar & 0x01 != 0 {
+                // I/O bar
+                (bar & 0xFFFFFFFC) as u64
+            } else {
+                // Memory bar
+                (bar & 0xFFFFFFF0) as u64
+            }
+        }
+    }
+}

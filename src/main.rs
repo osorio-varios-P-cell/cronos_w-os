@@ -234,11 +234,13 @@ pub extern "C" fn kernel_main(boot_info: &BootInfo) -> ! {
                 }
             }
 
-            // FASE 2: Inicializar NVMe y xHCI con direcciones reales del scanner PCI
+            // FASE 2: Inicializar NVMe y xHCI con direcciones MMIO reales del scanner PCI
             for dev in &pci_devices {
+                let bar0 = dev.get_bar0_addr();
+                let bar0 = dev.get_bar0_addr();
                 if dev.class_id == 0x01 && dev.subclass_id == 0x08 { // NVMe
-                    let mut nvme = nvme::NvmeController::new(0, 0);
-                    if nvme.initialize().is_ok() {
+                    let mut nvme = nvme::NvmeController::new(dev.bus, dev.device);
+                    if nvme.initialize(boot_info.hhdm_offset + bar0).is_ok() {
                         let nvme_node = gk.create_node(
                             graph_kernel::NodeType::HardwareDevice(graph_kernel::HardwareType::Nvme),
                             format!("nvme_{:02x}:{:02x}", dev.bus, dev.device),
@@ -246,13 +248,22 @@ pub extern "C" fn kernel_main(boot_info: &BootInfo) -> ! {
                         gk.create_edge(gk.root_node().unwrap(), nvme_node, graph_kernel::EdgeType::Ownership);
                     }
                 } else if dev.class_id == 0x0C && dev.subclass_id == 0x03 { // xHCI (USB 3.0)
-                    let mut xhci = usb_xhci::XhciController::new(0);
+                    let mut xhci = usb_xhci::XhciController::new(boot_info.hhdm_offset + bar0);
                     if xhci.initialize().is_ok() {
                         let xhci_node = gk.create_node(
                             graph_kernel::NodeType::HardwareDevice(graph_kernel::HardwareType::Xhci),
                             format!("xhci_{:02x}:{:02x}", dev.bus, dev.device),
                         );
                         gk.create_edge(gk.root_node().unwrap(), xhci_node, graph_kernel::EdgeType::Ownership);
+                    }
+                } else if dev.class_id == 0x02 && dev.subclass_id == 0x00 { // Ethernet (e1000e)
+                    let mut nic = e1000e::E1000eDriver::new(boot_info.hhdm_offset + bar0);
+                    if nic.initialize().is_ok() {
+                        let nic_node = gk.create_node(
+                            graph_kernel::NodeType::HardwareDevice(graph_kernel::HardwareType::Network),
+                            format!("eth_{:02x}:{:02x}", dev.bus, dev.device),
+                        );
+                        gk.create_edge(gk.root_node().unwrap(), nic_node, graph_kernel::EdgeType::Ownership);
                     }
                 }
             }
