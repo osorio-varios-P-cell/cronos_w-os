@@ -5,10 +5,10 @@
 
 use core::fmt;
 use alloc::vec::Vec;
-use alloc::string::{String, ToString};
+use alloc::string::String;
 use alloc::format;
 use alloc::collections::{BTreeMap, BTreeSet};
-use crate::capability::{Capability, Cell, CapabilityId, invoke_capability, invoke_capability_mut};
+use crate::capability::{Cell, CapabilityId, invoke_capability_mut};
 use crate::graph_kernel::{GraphKernel, NodeId};
 
 /// Estado del proceso
@@ -438,8 +438,15 @@ impl Scheduler {
         self.schedule_priority()
     }
 
-    /// Cambio de contexto
+    /// Cambio de contexto real (físico)
     pub fn context_switch(&mut self, from: Option<u64>, to: Option<u64>) {
+        if from == to {
+            return;
+        }
+
+        self.stats.total_context_switches += 1;
+
+        // 1. Actualizar estados en memoria
         if let Some(from_id) = from {
             if let Some(process) = self.get_process_mut(from_id) {
                 process.state = ProcessState::Ready;
@@ -449,10 +456,20 @@ impl Scheduler {
         if let Some(to_id) = to {
             if let Some(process) = self.get_process_mut(to_id) {
                 process.state = ProcessState::Running;
+                self.current_process = Some(to_id);
             }
         }
 
-        self.stats.total_context_switches += 1;
+        // 2. Realizar el cambio físico si ambos existen
+        if let (Some(from_id), Some(to_id)) = (from, to) {
+            // Obtenemos los punteros de pila de forma segura
+            let old_rsp_ptr = &mut self.processes.get_mut(&from_id).unwrap().context.rsp as *mut u64;
+            let new_rsp = self.processes.get(&to_id).unwrap().context.rsp;
+
+            unsafe {
+                crate::context_switch_asm(old_rsp_ptr, new_rsp);
+            }
+        }
     }
 
     /// Tick del scheduler (llamado por el timer)
@@ -583,6 +600,7 @@ impl Default for Scheduler {
 }
 
 /// Errores del scheduler
+#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SchedulerError {
     ProcessNotFound,

@@ -9,6 +9,7 @@ use crate::capability::{Capability, Cell, CapabilityId, CapabilityRights, invoke
 use crate::graph_kernel::{GraphKernel, GraphStats, NodeId};
 use crate::hive_swarm::HiveSwarm;
 use crate::hive_multiversal::HiveMultiversal;
+use crate::installer_ledger::InstallerLedger;
 use crate::openai_integration::{CronosOpenAIIntegration, OpenAIModelType};
 use crate::localai_integration::{CronosLocalAIIntegration, LocalAIModelType};
 use alloc::collections::{BTreeMap, BTreeSet};
@@ -912,6 +913,27 @@ impl HiveBroker {
 }
 
 impl HiveAi {
+    /// Analizar eventos del instalador para auto-corrección
+    pub fn analyze_installer_events(&mut self, ledger: &InstallerLedger) {
+        for conflict in &ledger.conflicts {
+            let belief_id = self.next_request_id; // Reusar contador para IDs de creencias
+            self.next_request_id += 1;
+
+            self.beliefs.insert(belief_id, Belief {
+                id: belief_id,
+                description: format!("HardwareConflict:{} ({})", conflict.device_id, conflict.conflict_type),
+                evidence_score: 0.9,
+                is_valid: true,
+            });
+
+            // Razonamiento autónomo: Proponer corrección
+            self.current_reasoning.push(ReasoningStep {
+                thought: format!("Detectado conflicto {} en {}. Sugiriendo auto-generación de driver.", conflict.conflict_type, conflict.device_id),
+                principle: String::from("Sovereign Self-Healing"),
+            });
+        }
+    }
+
     pub fn new(architecture: LayerArchitecture) -> Self {
         Self {
             architecture: Cell::new(architecture),

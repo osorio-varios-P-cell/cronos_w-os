@@ -149,6 +149,7 @@ impl NinePConnectionConfig {
 }
 
 /// Conexión 9p
+#[derive(Debug, Clone)]
 pub struct NinePConnection {
     /// Configuración de la conexión
     pub config: NinePConnectionConfig,

@@ -100,7 +100,7 @@ pub enum WindowType {
 }
 
 /// Window in the compositor
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Window {
     pub id: WindowId,
     pub node_id: NodeId,
@@ -175,6 +175,7 @@ pub struct CompositorLayer {
 }
 
 /// Compositor - manages windows as graph nodes
+#[derive(Debug, Clone)]
 pub struct Compositor {
     graph_kernel: GraphKernel,
     compositor_node: Option<NodeId>,

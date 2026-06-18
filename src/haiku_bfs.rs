@@ -178,6 +178,7 @@ impl BfsVolumeConfig {
 }
 
 /// Volumen BFS
+#[derive(Debug, Clone)]
 pub struct BfsVolume {
     /// Configuración del volumen
     pub config: BfsVolumeConfig,

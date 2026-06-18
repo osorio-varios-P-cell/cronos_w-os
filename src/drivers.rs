@@ -21,6 +21,7 @@ use alloc::string::String;
 use alloc::format;
 
 /// GPU Driver (Redox port)
+#[derive(Debug, Clone)]
 pub struct RedoxGpuDriver {
     name: String,
     vendor_id: u16,

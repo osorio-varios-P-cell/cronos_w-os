@@ -2,6 +2,41 @@
 #![no_main]
 #![feature(abi_x86_interrupt)]
 
+use core::arch::global_asm;
+
+global_asm!(r#"
+.global context_switch_asm
+context_switch_asm:
+    # rdi = *mut old_rsp
+    # rsi = new_rsp
+
+    # Guardar registros callee-saved
+    push rbp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+
+    # Cambiar puntero de pila
+    mov [rdi], rsp
+    mov rsp, rsi
+
+    # Restaurar registros callee-saved
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+
+    ret
+"#);
+
+extern "C" {
+    pub fn context_switch_asm(old_rsp: *mut u64, new_rsp: u64);
+}
+
 extern crate alloc;
 
 use core::panic::PanicInfo;
@@ -16,6 +51,7 @@ use lazy_static::lazy_static;
 
 lazy_static! {
     pub static ref INSTALLER_LEDGER: Mutex<InstallerLedger> = Mutex::new(InstallerLedger::new());
+    pub static ref SCHEDULER: Mutex<Scheduler> = Mutex::new(Scheduler::new(scheduler::SchedulerConfig::default()));
 }
 
 // Exportar funciones y tipos para boot.rs
@@ -276,6 +312,8 @@ pub fn kernel_main_impl(boot_info: &BootInfo) -> ! {
             hive.initialize_openai(gk.clone());
             hive.initialize_localai(gk.clone());
         }
+        // FASE 2.5: Analizar eventos de instalación para auto-corrección neural
+        hive.analyze_installer_events(&INSTALLER_LEDGER.lock());
     }
 
     if status {
@@ -368,7 +406,7 @@ pub fn kernel_main_impl(boot_info: &BootInfo) -> ! {
                     });
                 }
             }
-            let mut memory_manager = unsafe {
+            let memory_manager = unsafe {
                 MemoryManager::new_with_params(boot_info.hhdm_offset, &memory_regions)
             };
             memory_manager.register_in_graph(gk);
@@ -380,14 +418,15 @@ pub fn kernel_main_impl(boot_info: &BootInfo) -> ! {
                 exokernel.get_exokernel_metrics().total_nodes,
                 exokernel.get_exokernel_metrics().total_edges);
 
-            use scheduler::SchedulerConfig;
-            let mut scheduler = Scheduler::new(SchedulerConfig::default());
-            scheduler.set_graph_kernel(gk.clone());
-            let _init_proc = scheduler.create_process(
-                String::from("cronos_init"),
-                scheduler::ProcessPriority::High,
-            );
-            crate::serial_println!("Scheduler: inicializado, procesos={}", scheduler.process_count());
+            {
+                let mut scheduler = SCHEDULER.lock();
+                scheduler.set_graph_kernel(gk.clone());
+                let _init_proc = scheduler.create_process(
+                    String::from("cronos_init"),
+                    scheduler::ProcessPriority::High,
+                );
+                crate::serial_println!("Scheduler: inicializado, procesos={}", scheduler.process_count());
+            }
 
             let mut container_runtime = CronosContainerRuntime::new();
             container_runtime.set_graph_kernel(gk.clone());
@@ -401,35 +440,35 @@ pub fn kernel_main_impl(boot_info: &BootInfo) -> ! {
 
     if let Some(ref lumen) = lumen_layer {
         invoke_capability_mut(&lumen.compositor(), |comp| {
-            // Welcome window
+            // Ventana de Bienvenida
             let welcome = comp.create_window(
-                String::from("Welcome to CRONOS OS"),
+                String::from("Bienvenido a CRONOS OS"),
                 Rect::new(80, 40, 700, 440),
             );
             if let Some(win) = comp.get_window_mut(welcome) {
                 win.background_color = 0xFF2D2D3F;
             }
-            // Terminal window
+            // Ventana de Terminal
             let term = comp.create_window(
-                String::from("Terminal - bash"),
+                String::from("Terminal Soberana - bash"),
                 Rect::new(160, 100, 650, 380),
             );
             if let Some(win) = comp.get_window_mut(term) {
                 win.background_color = 0xFF1A1A2E;
             }
-            // Hive AI Monitor window
+            // Ventana de Monitor Hive AI
             let hive_mon = comp.create_window(
-                String::from("Hive AI Monitor"),
+                String::from("Monitor de IA Colmena"),
                 Rect::new(300, 180, 550, 300),
             );
             if let Some(win) = comp.get_window_mut(hive_mon) {
                 win.background_color = 0xFF1A1A3E;
             }
-            // Create COSMIC panel (taskbar) - full width at bottom
+            // Panel COSMIC (barra de tareas)
             let fb_w = comp.resolution().0;
             let fb_h = comp.resolution().1;
             let panel = comp.create_window(
-                String::from("COSMIC Panel"),
+                String::from("Panel COSMIC"),
                 Rect::new(0, (fb_h - 48) as i32, fb_w, 48),
             );
             if let Some(win) = comp.get_window_mut(panel) {
@@ -472,7 +511,7 @@ pub fn kernel_main_impl(boot_info: &BootInfo) -> ! {
     loop {}
 }
 
-fn initialize_system(vga_buffer: *mut u8) -> bool {
+fn initialize_system(_vga_buffer: *mut u8) -> bool {
     let _ = initialize_system_with_graph_and_layers(None);
     true
 }

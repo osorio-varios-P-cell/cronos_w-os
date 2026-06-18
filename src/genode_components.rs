@@ -160,6 +160,7 @@ impl ComponentSession {
 }
 
 /// Componente Genode
+#[derive(Debug, Clone)]
 pub struct GenodeComponent {
     /// Configuración del componente
     pub config: ComponentConfig,

@@ -103,6 +103,17 @@ pub struct Capability<T: ?Sized> {
     rights: CapabilityRights,
 }
 
+impl<T: ?Sized> Clone for Capability<T> {
+    fn clone(&self) -> Self {
+        Self {
+            id: self.id,
+            resource: self.resource,
+            rights: self.rights,
+        }
+    }
+}
+
+
 impl<T: ?Sized> Capability<T> {
     /// Create a new capability with full rights
     /// 

@@ -67,14 +67,14 @@ pub fn _print(args: core::fmt::Arguments) {
 
 // Stubs para funciones exportadas (mantenidos por compatibilidad)
 pub fn serial_print(s: &str) {
-    let mut serial = SERIAL_WRITER.lock();
+    let _serial = SERIAL_WRITER.lock();
     for byte in s.bytes() {
         SerialWriter::write_byte(byte);
     }
 }
 
 pub fn serial_println(s: &str) {
-    let mut serial = SERIAL_WRITER.lock();
+    let _serial = SERIAL_WRITER.lock();
     for byte in s.bytes() {
         SerialWriter::write_byte(byte);
     }
@@ -83,7 +83,7 @@ pub fn serial_println(s: &str) {
 }
 
 pub fn serial_print_hex(val: u64) {
-    let mut serial = SERIAL_WRITER.lock();
+    let _serial = SERIAL_WRITER.lock();
     let hex_chars = b"0123456789abcdef";
     for i in (0..16).rev() {
         let nibble = (val >> (i * 4)) & 0xf;
@@ -92,7 +92,7 @@ pub fn serial_print_hex(val: u64) {
 }
 
 pub fn serial_print_dec(val: u64) {
-    let mut serial = SERIAL_WRITER.lock();
+    let _serial = SERIAL_WRITER.lock();
     if val == 0 {
         SerialWriter::write_byte(b'0');
         return;

@@ -35,7 +35,7 @@ use crate::knowledge_persistence::KnowledgePersistenceSystem;
 use crate::user_modeling::DeepUserModel;
 use crate::learning_loop::LearningLoop;
 use crate::context_engineering::ContextEngineeringSystem;
-use crate::multi_model_integration::MultiModelIntegration;
+use crate::multi_model_integration::{MultiModelIntegration, ModelSelectionStrategy};
 use crate::rag_system::RagSystem;
 use crate::media_engine::MediaEngine;
 use crate::genode_components::GenodeComponentManager;
@@ -411,7 +411,7 @@ impl SystemLayer {
     /// FASE 15: Inicializar multi model integration para capa GENESIS
     pub fn initialize_multi_model_integration(&mut self) -> Result<(), String> {
         if self.layer_type == Layer::Genesis {
-            let mmi = MultiModelIntegration::new();
+            let mmi = MultiModelIntegration::new(ModelSelectionStrategy::Balanced);
             self.multi_model_integration = Some(mmi);
             Ok(())
         } else {

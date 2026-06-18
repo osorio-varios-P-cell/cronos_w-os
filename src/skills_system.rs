@@ -153,6 +153,7 @@ impl Skill {
 }
 
 /// Biblioteca de habilidades
+#[derive(Debug, Clone)]
 pub struct SkillLibrary {
     /// Habilidades disponibles
     pub skills: Vec<Skill>,

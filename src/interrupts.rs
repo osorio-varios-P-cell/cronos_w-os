@@ -218,6 +218,11 @@ extern "x86-interrupt" fn security_exception_handler(stack_frame: InterruptStack
 
 // IRQ handlers
 extern "x86-interrupt" fn timer_handler(_stack_frame: InterruptStackFrame) {
+    TICK_COUNT.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
+
+    // Llamar al tick del scheduler
+    crate::SCHEDULER.lock().tick();
+
     unsafe {
         core::arch::asm!("out 0x20, al", in("al") 0x20u8, options(nomem, nostack));
     }
