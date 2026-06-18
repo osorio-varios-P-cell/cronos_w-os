@@ -343,6 +343,25 @@ impl GraphicsContext {
         }
     }
 
+    /// Dibuja un rectángulo con bordes redondeados (Estilo Crystal UI)
+    pub fn fill_rounded_rect(&mut self, rect: Rect, radius: i32) {
+        let x1 = rect.x;
+        let y1 = rect.y;
+        let x2 = rect.x + rect.width as i32 - 1;
+        let y2 = rect.y + rect.height as i32 - 1;
+
+        // Cuerpo central
+        self.fill_rect(Rect::new(x1 + radius, y1, rect.width - 2 * radius as u32, rect.height));
+        self.fill_rect(Rect::new(x1, y1 + radius, radius as u32, rect.height - 2 * radius as u32));
+        self.fill_rect(Rect::new(x2 - radius + 1, y1 + radius, radius as u32, rect.height - 2 * radius as u32));
+
+        // Esquinas (Círculos)
+        self.fill_circle(x1 + radius, y1 + radius, radius);
+        self.fill_circle(x2 - radius, y1 + radius, radius);
+        self.fill_circle(x1 + radius, y2 - radius, radius);
+        self.fill_circle(x2 - radius, y2 - radius, radius);
+    }
+
     pub fn draw_circle(&mut self, cx: i32, cy: i32, radius: i32) {
         let mut x = radius;
         let mut y = 0;

@@ -70,3 +70,28 @@ pub fn set_kernel_stack(stack_top: VirtAddr) {
         TSS.privilege_stack_table[0] = stack_top;
     }
 }
+
+/// Salta al modo usuario (Ring 3) - FASE 1: Salto de seguridad
+pub unsafe fn jump_to_user_mode(entry_point: u64, stack_top: u64) -> ! {
+    let code_selector = (GDT.1.user_code_selector.0 | 3) as u64; // RPL 3
+    let data_selector = (GDT.1.user_data_selector.0 | 3) as u64; // RPL 3
+
+    core::arch::asm!(
+        "cli",
+        "mov ds, ax",
+        "mov es, ax",
+        "mov fs, ax",
+        "mov gs, ax",
+        "push rax",      // SS
+        "push rsi",      // RSP
+        "push 0x202",    // RFLAGS (IF habilitado)
+        "push rdx",      // CS
+        "push rdi",      // RIP
+        "iretq",
+        in("ax") data_selector,
+        in("rdi") entry_point,
+        in("rsi") stack_top,
+        in("rdx") code_selector,
+        options(noreturn)
+    );
+}

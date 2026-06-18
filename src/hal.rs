@@ -160,6 +160,8 @@ pub enum GpuCommand {
     DrawRect { x: u32, y: u32, width: u32, height: u32, color: u32 },
     DrawText { x: u32, y: u32, text: alloc::string::String },
     Blit { src_x: u32, src_y: u32, dst_x: u32, dst_y: u32, width: u32, height: u32 },
+    DrawCircle { cx: i32, cy: i32, radius: i32, color: u32 },
+    FillCircle { cx: i32, cy: i32, radius: i32, color: u32 },
 }
 
 /// Trait for NVMe storage devices

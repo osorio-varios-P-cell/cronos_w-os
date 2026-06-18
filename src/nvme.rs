@@ -4,6 +4,7 @@
 extern crate alloc;
 use alloc::string::String;
 use core::ptr::{read_volatile, write_volatile};
+use crate::hal::{Device, NvmeDevice, DeviceError, DeviceCapabilities};
 
 #[repr(C, packed)]
 #[derive(Clone, Copy)]
@@ -30,6 +31,9 @@ pub struct NvmeCompletion {
 }
 
 pub struct NvmeController {
+    pub name: String,
+    pub vendor_id: u16,
+    pub device_id: u16,
     pub mmio_base: u64,
     pub enabled: bool,
     pub max_queues: u16,
@@ -41,6 +45,9 @@ pub struct NvmeController {
 impl NvmeController {
     pub fn new(_bus: u8, _dev: u8) -> Self {
         Self {
+            name: String::from("nvme-sovereign"),
+            vendor_id: 0x1B4B, // Marvell (ejemplo)
+            device_id: 0x0100,
             mmio_base: 0,
             enabled: false,
             max_queues: 0,
@@ -115,5 +122,57 @@ impl NvmeController {
     #[inline]
     unsafe fn write_reg64(&self, offset: u32, val: u64) {
         write_volatile((self.mmio_base + offset as u64) as *mut u64, val);
+    }
+}
+
+impl Device for NvmeController {
+    fn name(&self) -> &str { &self.name }
+    fn vendor_id(&self) -> u16 { self.vendor_id }
+    fn device_id(&self) -> u16 { self.device_id }
+
+    fn init(&mut self) -> Result<(), DeviceError> {
+        // En una integración real, mmio_base se pasaría aquí
+        self.initialize(self.mmio_base).map_err(|_| DeviceError::InitializationFailed)
+    }
+
+    fn reset(&mut self) -> Result<(), DeviceError> {
+        unsafe {
+            self.write_reg32(0x14, 0); // CC.EN = 0
+            while (self.read_reg32(0x1C) & 0x01) != 0 {}
+        }
+        Ok(())
+    }
+
+    fn is_ready(&self) -> bool { self.enabled }
+
+    fn capabilities(&self) -> DeviceCapabilities {
+        DeviceCapabilities {
+            dma: true,
+            interrupt: true,
+            mmio: true,
+            pio: false,
+        }
+    }
+}
+
+impl NvmeDevice for NvmeController {
+    fn namespace_count(&self) -> u32 { 1 }
+    fn namespace_size(&self, _nsid: u32) -> Result<u64, DeviceError> { Ok(1024 * 1024 * 1024) } // 1GB simulado
+
+    fn read(&mut self, _nsid: u32, _lba: u64, buffer: &mut [u8]) -> Result<(), DeviceError> {
+        if !self.enabled { return Err(DeviceError::NotReady); }
+        // Aquí se implementaría la lógica real de comandos NVMe
+        for byte in buffer.iter_mut() { *byte = 0; }
+        Ok(())
+    }
+
+    fn write(&mut self, _nsid: u32, _lba: u64, _buffer: &[u8]) -> Result<(), DeviceError> {
+        if !self.enabled { return Err(DeviceError::NotReady); }
+        Ok(())
+    }
+
+    fn flush(&mut self, _nsid: u32) -> Result<(), DeviceError> {
+        if !self.enabled { return Err(DeviceError::NotReady); }
+        Ok(())
     }
 }

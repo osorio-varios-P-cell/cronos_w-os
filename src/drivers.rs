@@ -207,7 +207,44 @@ impl GpuDevice for RedoxGpuDriver {
                     }
                 }
             }
-            _ => {}
+            GpuCommand::DrawCircle { cx, cy, radius, color } => {
+                let mut x = radius;
+                let mut y = 0;
+                let mut err = 0;
+                unsafe {
+                    let fb = self.framebuffer as *mut u32;
+                    while x >= y {
+                        let points = [
+                            (cx + x, cy + y), (cx + y, cy + x), (cx - y, cy + x), (cx - x, cy + y),
+                            (cx - x, cy - y), (cx - y, cy - x), (cx + y, cy - x), (cx + x, cy - y)
+                        ];
+                        for (px, py) in points {
+                            if px >= 0 && px < self.width as i32 && py >= 0 && py < self.height as i32 {
+                                *fb.add((py as u32 * self.width + px as u32) as usize) = color;
+                            }
+                        }
+                        if err <= 0 { y += 1; err += 2 * y + 1; }
+                        if err > 0 { x -= 1; err -= 2 * x + 1; }
+                    }
+                }
+            }
+            GpuCommand::FillCircle { cx, cy, radius, color } => {
+                unsafe {
+                    let fb = self.framebuffer as *mut u32;
+                    for y in (cy - radius)..=(cy + radius) {
+                        for x in (cx - radius)..=(cx + radius) {
+                            if x >= 0 && x < self.width as i32 && y >= 0 && y < self.height as i32 {
+                                let dx = x - cx;
+                                let dy = y - cy;
+                                if dx * dx + dy * dy <= radius * radius {
+                                    *fb.add((y as u32 * self.width + x as u32) as usize) = color;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            GpuCommand::Blit { .. } => {}
         }
         Ok(())
     }
