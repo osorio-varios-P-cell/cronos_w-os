@@ -132,6 +132,7 @@ impl Default for ThermalInfo {
 }
 
 /// Gestor de energía
+#[derive(Debug, Clone)]
 pub struct CronosPowerManager {
     pub current_state: PowerState,
     pub policy: PowerPolicy,

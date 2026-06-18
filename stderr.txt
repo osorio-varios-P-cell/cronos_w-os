@@ -1,0 +1,5 @@
+Physical block size of 512 bytes.
+Installing to GPT. Logical block size of 512 bytes.
+Secondary header at LBA 0x1ffff.
+Secondary header valid.
+GPT partition NOT specified. Attempting GPT embedding.

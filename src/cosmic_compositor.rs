@@ -176,6 +176,7 @@ impl CompositionLayer {
 }
 
 /// Compositor moderno de Cosmic adaptado
+#[derive(Debug, Clone)]
 pub struct CosmicCompositor {
     pub layers: BTreeMap<u64, CompositionLayer>,
     pub next_layer_id: u64,

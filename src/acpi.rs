@@ -594,17 +594,21 @@ impl Madt {
         }
     }
 
-    /// Parsear MADT desde una tabla ACPI
-    pub unsafe fn from_acpi_table(table: &AcpiTable) -> Option<Self> {
+    /// Parsear MADT desde la dirección virtual en memoria física
+    pub unsafe fn from_acpi_table_addr(table: &AcpiTable, virt_addr: u64) -> Option<Self> {
         if table.signature != [b'A', b'P', b'I', b'C'] {
             return None;
         }
-
-        let madt_ptr = table as *const AcpiTable as *const u8;
-        
-        // Leer local_apic_address y flags (offset 36 y 40)
-        let local_apic_address = *((madt_ptr.add(36)) as *const u32);
-        let flags = *((madt_ptr.add(40)) as *const u32);
+        let base = virt_addr as *const u8;
+        // Leer local_apic_address (offset 36) y flags (offset 40) byte-by-byte
+        let local_apic_address = (*base.add(36) as u32)
+            | ((*base.add(37) as u32) << 8)
+            | ((*base.add(38) as u32) << 16)
+            | ((*base.add(39) as u32) << 24);
+        let flags = (*base.add(40) as u32)
+            | ((*base.add(41) as u32) << 8)
+            | ((*base.add(42) as u32) << 16)
+            | ((*base.add(43) as u32) << 24);
 
         let mut madt = Madt {
             local_apic_address,
@@ -614,18 +618,23 @@ impl Madt {
         };
 
         // Parsear entradas MADT (comienzan en offset 44)
-        let mut offset = 44;
+        let mut offset = 44usize;
         while offset < table.length as usize {
-            let entry_type = *((madt_ptr.add(offset)) as *const u8);
-            let entry_length = *((madt_ptr.add(offset + 1)) as *const u8);
+            let entry_type = *base.add(offset);
+            let entry_length = *base.add(offset + 1) as usize;
+            if entry_length < 2 {
+                break;
+            }
 
             match entry_type {
                 0 => {
-                    // Processor Local APIC
-                    let acpi_processor_id = *((madt_ptr.add(offset + 2)) as *const u8);
-                    let apic_id = *((madt_ptr.add(offset + 3)) as *const u8);
-                    let flags = *((madt_ptr.add(offset + 4)) as *const u32);
-                    
+                    // Processor Local APIC (entry length >= 8)
+                    let acpi_processor_id = *base.add(offset + 2);
+                    let apic_id = *base.add(offset + 3);
+                    let flags = (*base.add(offset + 4) as u32)
+                        | ((*base.add(offset + 5) as u32) << 8)
+                        | ((*base.add(offset + 6) as u32) << 16)
+                        | ((*base.add(offset + 7) as u32) << 24);
                     madt.processors.push(ProcessorLocalApicEntry {
                         acpi_processor_id,
                         apic_id,
@@ -633,12 +642,17 @@ impl Madt {
                     });
                 }
                 1 => {
-                    // I/O APIC
-                    let io_apic_id = *((madt_ptr.add(offset + 2)) as *const u8);
-                    let reserved = *((madt_ptr.add(offset + 3)) as *const u8);
-                    let io_apic_address = *((madt_ptr.add(offset + 4)) as *const u32);
-                    let global_system_interrupt_base = *((madt_ptr.add(offset + 8)) as *const u32);
-                    
+                    // I/O APIC (entry length >= 12)
+                    let io_apic_id = *base.add(offset + 2);
+                    let reserved = *base.add(offset + 3);
+                    let io_apic_address = (*base.add(offset + 4) as u32)
+                        | ((*base.add(offset + 5) as u32) << 8)
+                        | ((*base.add(offset + 6) as u32) << 16)
+                        | ((*base.add(offset + 7) as u32) << 24);
+                    let global_system_interrupt_base = (*base.add(offset + 8) as u32)
+                        | ((*base.add(offset + 9) as u32) << 8)
+                        | ((*base.add(offset + 10) as u32) << 16)
+                        | ((*base.add(offset + 11) as u32) << 24);
                     madt.io_apics.push(IoApicEntry {
                         io_apic_id,
                         reserved,
@@ -646,12 +660,9 @@ impl Madt {
                         global_system_interrupt_base,
                     });
                 }
-                _ => {
-                    // Otros tipos de entradas no implementados aún
-                }
+                _ => {}
             }
-
-            offset += entry_length as usize;
+            offset += entry_length;
         }
 
         Some(madt)
@@ -768,136 +779,360 @@ pub struct AcpiManager {
     pub rsdp: Option<Rsdp>,
     pub rsdt: Option<AcpiTable>,
     pub xsdt: Option<AcpiTable>,
+    /// Virtual address of RSDT entries (table + 36)
+    pub rsdt_entries_addr: Option<u64>,
+    /// Virtual address of XSDT entries (table + 36)
+    pub xsdt_entries_addr: Option<u64>,
     pub fadt: Option<Fadt>,
     pub madt: Option<Madt>,
     pub aml_interpreter: Option<AmlInterpreter>,
     pub c_state_manager: CStateManager,
     pub tables: BTreeMap<String, AcpiTable>,
+    /// Virtual address of each ACPI table in physical memory
+    pub table_addrs: BTreeMap<String, u64>,
     pub devices: Vec<AcpiDevice>,
     pub power_info: PowerInfo,
     pub thermal_info: ThermalInfo,
     pub graph_kernel: Option<Cell<GraphKernel>>,
+    pub hhdm_offset: u64,
 }
 
 impl AcpiManager {
-    pub fn new() -> Self {
+    pub fn new(hhdm_offset: u64, rsdp_address: Option<u64>) -> Self {
+        // Si se proporciona el RSDP de Limine, usarlo directamente
+        // NOTA: Con BaseRevision 2, Limine devuelve dirección VIRTUAL (HHDM-offset),
+        // NO física. Por lo tanto NO debemos sumar hhdm_offset nuevamente.
+        // Ref: limine-0.6.3 request.rs L430: "For base revision 3 only,
+        // this is a physical address, whereas other revisions use a virtual address."
+        let rsdp = if let Some(addr) = rsdp_address {
+            unsafe {
+                // Verificar que la dirección esté alineada a 16 bytes (requerido por ACPI)
+                if addr % 16 != 0 {
+                    crate::serial_println!("RSDP address not 16-byte aligned: 0x{:x}", addr);
+                    None
+                } else {
+                    // Leer el RSDP manualmente byte por byte para evitar problemas de alineación
+                    let rsdp_ptr = addr as *const u8;
+                    
+                    // Verificar que podemos leer la signature (primeros 8 bytes)
+                    let mut signature = [0u8; 8];
+                    for i in 0..8 {
+                        signature[i] = *rsdp_ptr.add(i);
+                    }
+                    
+                    // Verificar que la signature sea válida
+                    if &signature != b"RSD PTR " {
+                        crate::serial_println!("Invalid RSDP signature");
+                        None
+                    } else {
+                        // Leer el resto de los campos byte por byte
+                        let checksum = *rsdp_ptr.add(8);
+                        let mut oem_id = [0u8; 6];
+                        for i in 0..6 {
+                            oem_id[i] = *rsdp_ptr.add(9 + i);
+                        }
+                        let revision = *rsdp_ptr.add(15);
+                        
+                        // Leer rsdt_address (4 bytes, little-endian)
+                        let rsdt_address = (*rsdp_ptr.add(16) as u32) |
+                            ((*rsdp_ptr.add(17) as u32) << 8) |
+                            ((*rsdp_ptr.add(18) as u32) << 16) |
+                            ((*rsdp_ptr.add(19) as u32) << 24);
+                        
+                        // Leer campos extendidos solo si revision >= 2
+                        let (length, xsdt_address, extended_checksum) = if revision >= 2 {
+                            // Leer length (4 bytes, little-endian)
+                            let length = (*rsdp_ptr.add(20) as u32) |
+                                ((*rsdp_ptr.add(21) as u32) << 8) |
+                                ((*rsdp_ptr.add(22) as u32) << 16) |
+                                ((*rsdp_ptr.add(23) as u32) << 24);
+                            
+                            // Leer xsdt_address (8 bytes, little-endian)
+                            let xsdt_address = (*rsdp_ptr.add(24) as u64) |
+                                ((*rsdp_ptr.add(25) as u64) << 8) |
+                                ((*rsdp_ptr.add(26) as u64) << 16) |
+                                ((*rsdp_ptr.add(27) as u64) << 24) |
+                                ((*rsdp_ptr.add(28) as u64) << 32) |
+                                ((*rsdp_ptr.add(29) as u64) << 40) |
+                                ((*rsdp_ptr.add(30) as u64) << 48) |
+                                ((*rsdp_ptr.add(31) as u64) << 56);
+                            
+                            let extended_checksum = *rsdp_ptr.add(32);
+                            (length, xsdt_address, extended_checksum)
+                        } else {
+                            (0, 0, 0)
+                        };
+                        
+                        Some(Rsdp {
+                            signature,
+                            checksum,
+                            oem_id,
+                            revision,
+                            rsdt_address,
+                            length,
+                            xsdt_address,
+                            extended_checksum,
+                        })
+                    }
+                }
+            }
+        } else {
+            None
+        };
+
         Self {
             state: AcpiState::Uninitialized,
-            rsdp: None,
+            rsdp,
             rsdt: None,
             xsdt: None,
+            rsdt_entries_addr: None,
+            xsdt_entries_addr: None,
             fadt: None,
             madt: None,
             aml_interpreter: None,
             c_state_manager: CStateManager::new(),
             tables: BTreeMap::new(),
+            table_addrs: BTreeMap::new(),
             devices: Vec::new(),
             power_info: PowerInfo::new(),
             thermal_info: ThermalInfo::new(),
             graph_kernel: None,
+            hhdm_offset,
         }
     }
 
     /// Buscar el RSDP en memoria
-    unsafe fn search_rsdp() -> Option<Rsdp> {
+    unsafe fn search_rsdp(hhdm_offset: u64) -> Option<Rsdp> {
         // Buscar en el área EBDA (Extended BIOS Data Area)
         // La dirección de EBDA está en 0x40E
-        let ebda_ptr: *const u16 = 0x40E as *const u16;
+        let ebda_ptr: *const u16 = (hhdm_offset + 0x40E) as *const u16;
         let ebda_address = (*ebda_ptr as u64) * 16;
-        
+
         if ebda_address != 0 {
             // Buscar en los primeros 1KB del EBDA
             for offset in 0..1024 {
-                let addr = (ebda_address + offset) as *const Rsdp;
+                let addr = (hhdm_offset + ebda_address + offset) as *const Rsdp;
                 let rsdp = &*addr;
                 if rsdp.is_valid() && rsdp.verify_checksum() {
                     return Some(rsdp.clone());
                 }
             }
         }
-        
+
         // Buscar en el área de memoria baja (0xE0000-0xFFFFF)
         for addr in (0xE0000..=0xFFFFF).step_by(16) {
-            let rsdp_ptr = addr as *const Rsdp;
+            let rsdp_ptr = (hhdm_offset + addr) as *const Rsdp;
             let rsdp = &*rsdp_ptr;
             if rsdp.is_valid() && rsdp.verify_checksum() {
                 return Some(rsdp.clone());
             }
         }
-        
+
         None
     }
 
     /// Parsear RSDT desde la dirección especificada
-    unsafe fn parse_rsdt(rsdt_address: u32) -> Option<AcpiTable> {
-        let rsdt_ptr = rsdt_address as *const AcpiTable;
-        let rsdt = &*rsdt_ptr;
-        
-        if rsdt.is_valid() && rsdt.verify_checksum() {
-            Some(rsdt.clone())
-        } else {
-            None
+    unsafe fn parse_rsdt(rsdt_address: u32, hhdm_offset: u64) -> Option<AcpiTable> {
+        let base = (hhdm_offset + rsdt_address as u64) as *const u8;
+        // Read header byte-by-byte to avoid misalignment issues
+        let signature = [
+            *base.add(0), *base.add(1), *base.add(2), *base.add(3)
+        ];
+        if signature == [0; 4] {
+            return None;
         }
+        let length = (*base.add(4) as u32)
+            | ((*base.add(5) as u32) << 8)
+            | ((*base.add(6) as u32) << 16)
+            | ((*base.add(7) as u32) << 24);
+        if length < 36 {
+            return None;
+        }
+        // Verify checksum over the whole table
+        let mut sum: u8 = 0;
+        for i in 0..length as usize {
+            sum = sum.wrapping_add(*base.add(i));
+        }
+        if sum != 0 {
+            return None;
+        }
+        let revision = *base.add(8);
+        let checksum = *base.add(9);
+        let mut oem_id = [0u8; 6];
+        for i in 0..6 {
+            oem_id[i] = *base.add(10 + i);
+        }
+        let mut oem_table_id = [0u8; 8];
+        for i in 0..8 {
+            oem_table_id[i] = *base.add(16 + i);
+        }
+        let oem_revision = (*base.add(24) as u32)
+            | ((*base.add(25) as u32) << 8)
+            | ((*base.add(26) as u32) << 16)
+            | ((*base.add(27) as u32) << 24);
+        let asl_compiler_id = [
+            *base.add(28), *base.add(29), *base.add(30), *base.add(31)
+        ];
+        let asl_compiler_revision = (*base.add(32) as u32)
+            | ((*base.add(33) as u32) << 8)
+            | ((*base.add(34) as u32) << 16)
+            | ((*base.add(35) as u32) << 24);
+
+        Some(AcpiTable {
+            signature,
+            length,
+            revision,
+            checksum,
+            oem_id,
+            oem_table_id,
+            oem_revision,
+            asl_compiler_id,
+            asl_compiler_revision,
+        })
     }
 
     /// Parsear XSDT desde la dirección especificada
-    unsafe fn parse_xsdt(xsdt_address: u64) -> Option<AcpiTable> {
-        let xsdt_ptr = xsdt_address as *const AcpiTable;
-        let xsdt = &*xsdt_ptr;
-        
-        if xsdt.is_valid() && xsdt.verify_checksum() {
-            Some(xsdt.clone())
-        } else {
-            None
+    unsafe fn parse_xsdt(xsdt_address: u64, hhdm_offset: u64) -> Option<AcpiTable> {
+        let base = (hhdm_offset + xsdt_address) as *const u8;
+        let signature = [
+            *base.add(0), *base.add(1), *base.add(2), *base.add(3)
+        ];
+        if signature == [0; 4] {
+            return None;
         }
+        let length = (*base.add(4) as u32)
+            | ((*base.add(5) as u32) << 8)
+            | ((*base.add(6) as u32) << 16)
+            | ((*base.add(7) as u32) << 24);
+        if length < 36 {
+            return None;
+        }
+        let mut sum: u8 = 0;
+        for i in 0..length as usize {
+            sum = sum.wrapping_add(*base.add(i));
+        }
+        if sum != 0 {
+            return None;
+        }
+        let revision = *base.add(8);
+        let checksum = *base.add(9);
+        let mut oem_id = [0u8; 6];
+        for i in 0..6 { oem_id[i] = *base.add(10 + i); }
+        let mut oem_table_id = [0u8; 8];
+        for i in 0..8 { oem_table_id[i] = *base.add(16 + i); }
+        let oem_revision = (*base.add(24) as u32)
+            | ((*base.add(25) as u32) << 8)
+            | ((*base.add(26) as u32) << 16)
+            | ((*base.add(27) as u32) << 24);
+        let asl_compiler_id = [
+            *base.add(28), *base.add(29), *base.add(30), *base.add(31)
+        ];
+        let asl_compiler_revision = (*base.add(32) as u32)
+            | ((*base.add(33) as u32) << 8)
+            | ((*base.add(34) as u32) << 16)
+            | ((*base.add(35) as u32) << 24);
+        Some(AcpiTable {
+            signature, length, revision, checksum,
+            oem_id, oem_table_id, oem_revision,
+            asl_compiler_id, asl_compiler_revision,
+        })
     }
 
     /// Enumerar tablas ACPI desde RSDT/XSDT
     unsafe fn enumerate_tables(&mut self, use_xsdt: bool) {
-        let table_ptr = if use_xsdt {
+        let (entries_base, entry_size, table_count) = if use_xsdt {
             if let Some(ref xsdt) = self.xsdt {
-                xsdt as *const AcpiTable as u64 + 36 // Saltar el header de la tabla
+                let base = self.xsdt_entries_addr.unwrap_or(0);
+                if base == 0 { return; }
+                (base, 8usize, ((xsdt.length - 36) / 8) as usize)
             } else {
                 return;
             }
         } else {
             if let Some(ref rsdt) = self.rsdt {
-                rsdt as *const AcpiTable as u64 + 36 // Saltar el header de la tabla
+                let base = self.rsdt_entries_addr.unwrap_or(0);
+                if base == 0 { return; }
+                (base, 4usize, ((rsdt.length - 36) / 4) as usize)
             } else {
                 return;
-            }
-        };
-
-        let entry_size = if use_xsdt { 8 } else { 4 }; // XSDT usa 64-bit, RSDT usa 32-bit
-        let table_count = if use_xsdt {
-            if let Some(ref xsdt) = self.xsdt {
-                (xsdt.length - 36) / 8
-            } else {
-                0
-            }
-        } else {
-            if let Some(ref rsdt) = self.rsdt {
-                (rsdt.length - 36) / 4
-            } else {
-                0
             }
         };
 
         for i in 0..table_count {
-            let entry_offset = table_ptr + (i as u64 * entry_size);
+            let entry_addr = entries_base + (i as u64 * entry_size as u64);
             let table_address = if use_xsdt {
-                *(entry_offset as *const u64)
+                (*((entry_addr + 0) as *const u8) as u64)
+                    | ((*((entry_addr + 1) as *const u8) as u64) << 8)
+                    | ((*((entry_addr + 2) as *const u8) as u64) << 16)
+                    | ((*((entry_addr + 3) as *const u8) as u64) << 24)
+                    | ((*((entry_addr + 4) as *const u8) as u64) << 32)
+                    | ((*((entry_addr + 5) as *const u8) as u64) << 40)
+                    | ((*((entry_addr + 6) as *const u8) as u64) << 48)
+                    | ((*((entry_addr + 7) as *const u8) as u64) << 56)
             } else {
-                *(entry_offset as *const u32) as u64
+                (*((entry_addr + 0) as *const u8) as u64)
+                    | ((*((entry_addr + 1) as *const u8) as u64) << 8)
+                    | ((*((entry_addr + 2) as *const u8) as u64) << 16)
+                    | ((*((entry_addr + 3) as *const u8) as u64) << 24)
             };
 
-            let table_ptr = table_address as *const AcpiTable;
-            let table = &*table_ptr;
-
-            if table.is_valid() && table.verify_checksum() {
-                let signature = table.signature_str();
-                self.tables.insert(signature, table.clone());
+            let table_base = (self.hhdm_offset + table_address) as *const u8;
+            // Read table signature
+            let sig0 = *table_base;
+            let sig1 = *table_base.add(1);
+            let sig2 = *table_base.add(2);
+            let sig3 = *table_base.add(3);
+            let sig_bytes = [sig0, sig1, sig2, sig3];
+            if sig_bytes == [0; 4] {
+                continue;
             }
+            let table_len = (*table_base.add(4) as u32)
+                | ((*table_base.add(5) as u32) << 8)
+                | ((*table_base.add(6) as u32) << 16)
+                | ((*table_base.add(7) as u32) << 24);
+            if table_len < 36 {
+                continue;
+            }
+            // Verify checksum byte-by-byte
+            let mut sum: u8 = 0;
+            for j in 0..table_len as usize {
+                sum = sum.wrapping_add(*table_base.add(j));
+            }
+            if sum != 0 {
+                continue;
+            }
+            let revision = *table_base.add(8);
+            let checksum = *table_base.add(9);
+            let mut oem_id = [0u8; 6];
+            for j in 0..6 { oem_id[j] = *table_base.add(10 + j); }
+            let mut oem_table_id = [0u8; 8];
+            for j in 0..8 { oem_table_id[j] = *table_base.add(16 + j); }
+            let oem_revision = (*table_base.add(24) as u32)
+                | ((*table_base.add(25) as u32) << 8)
+                | ((*table_base.add(26) as u32) << 16)
+                | ((*table_base.add(27) as u32) << 24);
+            let asl_compiler_id = [
+                *table_base.add(28), *table_base.add(29),
+                *table_base.add(30), *table_base.add(31)
+            ];
+            let asl_compiler_revision = (*table_base.add(32) as u32)
+                | ((*table_base.add(33) as u32) << 8)
+                | ((*table_base.add(34) as u32) << 16)
+                | ((*table_base.add(35) as u32) << 24);
+            let table = AcpiTable {
+                signature: sig_bytes,
+                length: table_len,
+                revision,
+                checksum,
+                oem_id,
+                oem_table_id,
+                oem_revision,
+                asl_compiler_id,
+                asl_compiler_revision,
+            };
+            let signature_str = core::str::from_utf8_unchecked(&sig_bytes).to_string();
+            self.table_addrs.insert(signature_str.clone(), table_base as u64);
+            self.tables.insert(signature_str, table);
         }
     }
 
@@ -910,45 +1145,79 @@ impl AcpiManager {
     pub fn initialize(&mut self) -> Result<(), String> {
         self.state = AcpiState::SearchingRsdp;
 
-        // Buscar el RSDP en memoria
-        let rsdp = unsafe { Self::search_rsdp() };
-        let rsdp = rsdp.ok_or_else(|| String::from("RSDP not found"))?;
-        
-        // Verificar checksum del RSDP
-        if !rsdp.verify_checksum() {
-            return Err(String::from("Invalid RSDP checksum"));
+        // Intentar RSDP de Limine primero, si falla checksum buscar manualmente
+        let rsdp = if let Some(ref limine_rsdp) = self.rsdp {
+            if limine_rsdp.verify_checksum() {
+                crate::serial_println!("ACPI: Limine RSDP checksum OK");
+                limine_rsdp.clone()
+            } else {
+                crate::serial_println!("ACPI: Limine RSDP checksum FAILED, scanning manually...");
+                unsafe { Self::search_rsdp(self.hhdm_offset) }
+                    .ok_or_else(|| String::from("RSDP not found (Limine invalid + scan failed)"))?
+            }
+        } else {
+            crate::serial_println!("ACPI: No Limine RSDP, scanning manually...");
+            unsafe { Self::search_rsdp(self.hhdm_offset) }
+                .ok_or_else(|| String::from("RSDP not found"))?
+        };
+
+        crate::serial_println!("ACPI: RSDP found, revision={}, rsdt=0x{:08x}, xsdt=0x{:016x}",
+            rsdp.revision, rsdp.rsdt_address, rsdp.xsdt_address);
+
+        if rsdp.revision >= 2 {
+            if !rsdp.verify_extended_checksum() {
+                return Err(String::from("Invalid RSDP extended checksum"));
+            }
         }
-        
-        // Verificar checksum extendido si ACPI 2.0+
-        if rsdp.revision >= 2 && !rsdp.verify_extended_checksum() {
-            return Err(String::from("Invalid RSDP extended checksum"));
+        if rsdp.revision >= 2 {
+            if !rsdp.verify_extended_checksum() {
+                return Err(String::from("Invalid RSDP extended checksum"));
+            }
+            crate::serial_println!("ACPI: RSDP checksum OK (rev>=2)");
+        } else {
+            crate::serial_println!("ACPI: RSDP checksum OK (rev 1.0)");
         }
-        
+
         self.rsdp = Some(rsdp);
         self.state = AcpiState::ParsingRsdt;
 
         // Determinar si usar XSDT (ACPI 2.0+) o RSDT (ACPI 1.0)
         let use_xsdt = self.rsdp.as_ref().map(|r| r.revision >= 2).unwrap_or(false);
-        
+        crate::serial_println!("ACPI: using {}", if use_xsdt { "XSDT" } else { "RSDT" });
+
         if use_xsdt {
-            // Parsear XSDT
             let xsdt_address = self.rsdp.as_ref().map(|r| r.xsdt_address).unwrap_or(0);
             if xsdt_address == 0 {
                 return Err(String::from("XSDT address is zero"));
             }
-            
-            let xsdt = unsafe { Self::parse_xsdt(xsdt_address) };
+            let xsdt = unsafe { Self::parse_xsdt(xsdt_address, self.hhdm_offset) };
             let xsdt = xsdt.ok_or_else(|| String::from("Failed to parse XSDT"))?;
+            crate::serial_println!("ACPI: XSDT parsed, length={}, entries={}", xsdt.length, (xsdt.length - 36) / 8);
+            self.xsdt_entries_addr = Some(self.hhdm_offset + xsdt_address + 36);
             self.xsdt = Some(xsdt);
         } else {
-            // Parsear RSDT
             let rsdt_address = self.rsdp.as_ref().map(|r| r.rsdt_address).unwrap_or(0);
             if rsdt_address == 0 {
                 return Err(String::from("RSDT address is zero"));
             }
-            
-            let rsdt = unsafe { Self::parse_rsdt(rsdt_address) };
+            // Debug: dump first 36 bytes at RSDT address
+            unsafe {
+                let probe = (self.hhdm_offset + rsdt_address as u64) as *const u8;
+                crate::serial_print!("ACPI: RSDT addr=0x{:x} raw bytes:", self.hhdm_offset + rsdt_address as u64);
+                for i in 0..36 {
+                    crate::serial_print!(" {:02x}", *probe.add(i));
+                }
+                crate::serial_println!("");
+                let raw_sig = core::slice::from_raw_parts(probe, 4);
+                crate::serial_println!("ACPI: RSDT signature={:?}", core::str::from_utf8(raw_sig));
+            }
+            let rsdt = unsafe { Self::parse_rsdt(rsdt_address, self.hhdm_offset) };
+            if rsdt.is_none() {
+                crate::serial_println!("ACPI: parse_rsdt returned None (sig/checksum invalid)");
+            }
             let rsdt = rsdt.ok_or_else(|| String::from("Failed to parse RSDT"))?;
+            crate::serial_println!("ACPI: RSDT parsed OK, length={}, entries={}", rsdt.length, (rsdt.length - 36) / 4);
+            self.rsdt_entries_addr = Some(self.hhdm_offset + rsdt_address as u64 + 36);
             self.rsdt = Some(rsdt);
         }
 
@@ -956,10 +1225,14 @@ impl AcpiManager {
 
         // Enumerar todas las tablas ACPI
         unsafe { self.enumerate_tables(use_xsdt) };
+        crate::serial_println!("ACPI: {} tables enumerated", self.tables.len());
+        for sig in self.tables.keys() {
+            crate::serial_println!("ACPI:   table {}", sig);
+        }
 
         // Buscar FADT en las tablas
         if let Some(fadt) = self.tables.get("FACP") {
-            // Parsear FADT (simplificado)
+            crate::serial_println!("ACPI: FADT (FACP) found, oem={:?}, rev={}", fadt.oem_id, fadt.revision);
             self.fadt = Some(Fadt::new());
         } else {
             return Err(String::from("FADT not found in ACPI tables"));
@@ -967,24 +1240,45 @@ impl AcpiManager {
 
         // Buscar y parsear MADT para soporte SMP
         if let Some(madt_table) = self.tables.get("APIC") {
-            let madt = unsafe { Madt::from_acpi_table(madt_table) };
+            let addr = *self.table_addrs.get("APIC").unwrap_or(&0);
+            let madt = if addr != 0 {
+                unsafe { Madt::from_acpi_table_addr(madt_table, addr) }
+            } else {
+                None
+            };
             if let Some(madt) = madt {
+                crate::serial_println!("ACPI: MADT parsed, {} CPUs, {} IOAPICs",
+                    madt.processors.len(), madt.io_apics.len());
+                for (i, cpu) in madt.processors.iter().enumerate() {
+                    crate::serial_println!("ACPI:   CPU{}: APIC ID {}, flags=0x{:08x}{}",
+                        i, cpu.apic_id, cpu.flags, if (cpu.flags & 1) != 0 { " (enabled)" } else { "" });
+                }
+                for (i, ioapic) in madt.io_apics.iter().enumerate() {
+                    crate::serial_println!("ACPI:   IOAPIC{}: ID {}, addr=0x{:08x}, gsi_base={}",
+                        i, ioapic.io_apic_id, ioapic.io_apic_address, ioapic.global_system_interrupt_base);
+                }
                 self.madt = Some(madt);
+            } else {
+                crate::serial_println!("ACPI: MADT parse failed");
             }
+        } else {
+            crate::serial_println!("ACPI: APIC table not found (no MADT)");
         }
 
         // Buscar y parsear DSDT para intérprete AML
         if let Some(dsdt_table) = self.tables.get("DSDT") {
+            crate::serial_println!("ACPI: DSDT found, length={}", dsdt_table.length);
             let mut aml_interpreter = AmlInterpreter::new();
             aml_interpreter.set_dsdt(dsdt_table.clone());
-            
-            // Ejecutar el intérprete AML
             let _ = unsafe { aml_interpreter.execute() };
-            
+            crate::serial_println!("ACPI: AML namespace entries: {}", aml_interpreter.namespace.len());
             self.aml_interpreter = Some(aml_interpreter);
+        } else {
+            crate::serial_println!("ACPI: DSDT not found");
         }
 
         self.state = AcpiState::Ready;
+        crate::serial_println!("ACPI: initialization complete, state=Ready");
         Ok(())
     }
 
@@ -1166,7 +1460,7 @@ impl AcpiManager {
 
 impl Default for AcpiManager {
     fn default() -> Self {
-        Self::new()
+        Self::new(0, None) // hhdm_offset por defecto (no funcional, pero compila)
     }
 }
 

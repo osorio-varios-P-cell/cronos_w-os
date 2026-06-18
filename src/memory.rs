@@ -114,10 +114,12 @@ unsafe fn active_level_4_table(phys_offset: VirtAddr) -> &'static mut PageTable 
     &mut *virt.as_mut_ptr::<PageTable>()
 }
 
-/// Tamaño del heap global (64 KB para arranque)
-const HEAP_SIZE: usize = 64 * 1024;
+/// Tamaño del heap global (2 MB para arranque)
+const HEAP_SIZE: usize = 2 * 1024 * 1024;
+
 
 /// Buffer estático para el heap
+#[no_mangle]
 static mut HEAP_MEMORY: [u8; HEAP_SIZE] = [0; HEAP_SIZE];
 
 /// Inicializa el heap global del kernel
@@ -190,10 +192,10 @@ pub struct BootInfoFrameAllocator {
 
 impl MemoryManager {
     /// Crea un nuevo gestor de memoria
-    pub fn new() -> Self {
+    pub fn new(phys_offset: u64) -> Self {
         Self {
             page_table: None,
-            phys_offset: 0,
+            phys_offset,
             physical_memory_size: 0,
             available_memory: Vec::new(),
             used_memory: Vec::new(),
@@ -239,8 +241,7 @@ impl MemoryManager {
 
     /// Inicializa el gestor de memoria con parámetros directos (desde Limine)
     pub unsafe fn new_with_params(phys_offset: u64, regions: &[MemoryRegion]) -> Self {
-        let mut manager = Self::new();
-        manager.phys_offset = phys_offset;
+        let mut manager = Self::new(phys_offset);
         
         // Convertir MemoryRegion a formato para BitmapFrameAllocator
         let mut regions_for_bitmap: Vec<(u64, u64)> = regions.iter()

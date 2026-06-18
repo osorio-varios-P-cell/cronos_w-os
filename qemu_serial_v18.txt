@@ -1,0 +1,115 @@
+vbe: Initialising...
+vbe: Version: 3.0
+vbe: OEM: SeaBIOS VBE(C) 2011
+vbe: Graphics vendor: SeaBIOS Developers
+vbe: Product name: SeaBIOS VBE Adapter
+vbe: Product revision: Rev. 1
+edid: Success.
+vbe: EDID detected screen resolution of 1280x800
+vbe: Found matching mode 0x17a, attempting to set...
+vbe: Framebuffer address: 0xfd000000
+edid: Success.
+[2J[H
+[2;27H[36mLimine 9.6.7 (x86-64, BIOS)[0m
+
+
+
+[12;1H                                  [7m CRONOS OS [27m
+                                   FALLBACK [27m
+[4;1H    [32mARROWS[0m Select    [32mENTER[0m Boot    [32mE[0m Edit[4;64H[32mB[0m Blank Entry[14;1H
+
+[24;1H[2K[32mBooting automatically in [92m1[32m, press any key to stop the countdown...[0m[2J[Hlimine: Loading executable `boot():/CRONOS`...
+limine: Physical base:   0x1f79a000
+limine: Virtual base:    0xffffffff80000000
+limine: Slide:           0x0
+limine: ELF entry point: 0xffffffff8002c600
+limine: Base revision:   2
+limine: Requests count:  5
+limine: Top of HHDM:     0x100000000
+acpi: Found RSDP at 0xf52e0
+vbe: Initialising...
+vbe: Version: 3.0
+vbe: OEM: SeaBIOS VBE(C) 2011
+vbe: Graphics vendor: SeaBIOS Developers
+vbe: Product name: SeaBIOS VBE Adapter
+vbe: Product revision: Rev. 1
+edid: Success.
+vbe: EDID detected screen resolution of 1280x800
+vbe: Found matching mode 0x17a, attempting to set...
+vbe: Mode was already set, perfect!
+vbe: Framebuffer address: 0xfd000000
+edid: Success.
+paging: 1GiB pages are not supported!
+Memory map entries:
+  Base: 0x1000 Length: 0x51000 Type: 5 | END
+  Base: 0x52000 Length: 0x4d000 Type: 0 | END
+  Base: 0x9fc00 Length: 0x400 Type: 1 | END
+  Base: 0xf0000 Length: 0x10000 Type: 1 | END
+  Base: 0x100000 Length: 0x1f69a000 Type: 0 | END
+  Base: 0x1f79a000 Length: 0x23b000 Type: 6 | END
+  Base: 0x1f9d5000 Length: 0x4ec000 Type: 5 | END
+  Base: 0x1fec1000 Length: 0x6000 Type: 0 | END
+  Base: 0x1fec7000 Length: 0x7000 Type: 5 | END
+  Base: 0x1fece000 Length: 0x1a000 Type: 0 | END
+  Base: 0x1fee8000 Length: 0xf7000 Type: 5 | END
+  Base: 0x1ffdf000 Length: 0x21000 Type: 1 | END
+  Base: 0xb0000000 Length: 0x10000000 Type: 1 | END
+  Base: 0xfd000000 Length: 0x3e8000 Type: 7 | END
+  Base: 0xfed1c000 Length: 0x4000 Type: 1 | END
+  Base: 0xfffc0000 Length: 0x40000 Type: 1 | END
+  Base: 0xfd00000000 Length: 0x300000000 Type: 1 | END
+DEBUG: Bucle finalizado correctamente.
+
+Kernel Main: Entrada confirmada.
+Iniciando inicializacion del kernel...
+kernel_main: GDT init
+kernel_main: IDT init
+kernel_main: PIC init
+kernel_main: PS2/SYSTEM init
+[PS2] Teclado inicializado con IRQ1 activo.
+kernel_main: CS register = 0x8
+kernel_main: enable interrupts
+kernel_main: interrupts enabled!
+kernel_main: init allocator
+SS register antes de init_allocator: 0x10
+PIC Master IMR: 0xfe
+init_allocator: using static heap at 0xffffffff80034000, size=0x200000
+init_allocator: BumpAllocator initialized OK
+kernel_main: about to create HardwareScanner
+PCI devices found: 6
+DEBUG: before hex print
+DEBUG: hhdm_offset = 0xffff800000000000
+DEBUG: rsdp = 0xffff8000000f52e0
+DEBUG: after hex print
+DEBUG: boot_info.rsdp = 0xffff8000000f52e0
+ACPI: Limine RSDP checksum FAILED, scanning manually...
+ACPI: RSDP found, revision=0, rsdt=0x1ffe2344, xsdt=0x00205348434f42ce
+ACPI: RSDP checksum OK (rev 1.0)
+ACPI: using RSDT
+ACPI: RSDT addr=0xffff80001ffe2344 raw bytes: 52 53 44 54 38 00 00 00 01 d4 42 4f 43 48 53 20 42 58 50 43 20 20 20 20 01 00 00 00 42 58 50 43 01 00 00 00
+ACPI: RSDT signature=Ok("RSDT")
+ACPI: RSDT parsed OK, length=56, entries=5
+ACPI: 5 tables enumerated
+ACPI:   table APIC
+ACPI:   table FACP
+ACPI:   table HPET
+ACPI:   table MCFG
+ACPI:   table WAET
+ACPI: FADT (FACP) found, oem=[66, 79, 67, 72, 83, 32], rev=3
+ACPI: MADT parsed, 1 CPUs, 1 IOAPICs
+ACPI:   CPU0: APIC ID 0, flags=0x00000001 (enabled)
+ACPI:   IOAPIC0: ID 0, addr=0xfec00000, gsi_base=0
+ACPI: DSDT not found
+ACPI: initialization complete, state=Ready
+About to create hypervisor node
+Hypervisor node created
+Hypervisor edge created
+About to create ColmenaObserverBridge
+ColmenaObserverBridge created
+Colmena init done
+Colmena update_metrics done
+Exokernel: initializing MemoryManager
+PAGE FAULT
+Error Code: PageFaultErrorCode(CAUSED_BY_WRITE)
+CR2 (fault addr): 0xffff80001fefc000
+IP: 0xffffffff8002d0a0

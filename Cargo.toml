@@ -13,7 +13,7 @@ path = "src/main.rs"
 [dependencies]
 # Boot protocol (Limine reemplaza bootloader crate para framebuffer)
 limine = "0.6.3"
-x86_64 = "0.14.2"
+x86_64 = "0.15.4"
 volatile = "0.6.1"
 spin = "0.9.8"
 

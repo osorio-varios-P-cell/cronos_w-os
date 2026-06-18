@@ -168,6 +168,7 @@ impl Default for SecurityConfig {
 }
 
 /// Sistema de seguridad avanzado
+#[derive(Debug, Clone)]
 pub struct CronosAdvancedSecurity {
     pub config: SecurityConfig,
     pub keys: BTreeMap<u64, CryptoKey>,

@@ -263,6 +263,7 @@ impl FidlService {
 }
 
 /// Gestor de Capabilities de Fuchsia
+#[derive(Debug, Clone)]
 pub struct FuchsiaCapabilityManager {
     /// Handles Zircon registrados (keyed by handle_id)
     pub handles: BTreeMap<u32, ZirconHandle>,

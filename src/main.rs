@@ -5,22 +5,30 @@
 extern crate alloc;
 
 use core::panic::PanicInfo;
-use alloc::{string::String, format};
-use crate::serial_writer::serial_panic;
-use crate::boot::BootInfo;
+use alloc::{string::String, format, vec::Vec};
+use memory::{MemoryManager, MemoryRegion, MemoryRegionType, MemoryRange};
+use exokernel_integration::ExokernelIntegration;
+use scheduler::Scheduler;
+use cronos_container_runtime::CronosContainerRuntime;
 
-// Import all modules
+// Exportar funciones y tipos para boot.rs
+pub use crate::serial_writer::{serial_print_hex, serial_print_dec, serial_panic};
+pub use crate::serial_writer::SERIAL_WRITER;
+pub use crate::boot::BootInfo;
+
 mod boot;
 mod allocator;
 mod capability;
 mod graph_kernel;
 mod hal;
 mod drivers;
+mod driver_manager;
 mod compositor;
 mod layers;
 mod hive_ai;
 mod colmena_integration;
 mod hardware;
+mod hardware_monitor;
 mod memory;
 mod pci;
 mod interrupts;
@@ -155,7 +163,8 @@ mod genode_components;
 mod plan9_9p;
 mod fuchsia_capabilities;
 mod spinlock;
-mod serial_writer;
+pub mod serial_writer;
+pub use crate::serial_writer::*;
 mod bitmap_frame_allocator;
 mod neural_fable_tests;
 mod hive_multiversal;
@@ -173,83 +182,119 @@ use drivers::DriverFactory;
 use compositor::{Compositor, Rect};
 use layers::{LayerArchitecture, Layer, KernelLayer, AegisLayer, LumenLayer, GenesisLayer};
 use hive_ai::{HiveAi, SystemMetrics};
+use boot::FramebufferInfo;
 
-#[no_mangle]
-pub extern "C" fn kernel_main(boot_info: &BootInfo) -> ! {
-    // FASE 15: Initialize global allocator con información del bootloader
-    // BUG #16 Corregido: Usar boot_info real para inicializar memoria
-    init_allocator(boot_info);
+
+// kernel_main_impl será la implementación real, llamada desde boot.rs
+pub fn kernel_main_impl(boot_info: &BootInfo) -> ! {
+    // Deshabilitar interrupciones inmediatamente para evitar reentrancia
+    unsafe { core::arch::asm!("cli"); }
     
-    let vga_buffer = 0xb8000 as *mut u8;
-    
+    // DEBUG: debugcon antes de cualquier otro output
     unsafe {
-        // Clear screen
-        for i in 0..2000 {
-            *vga_buffer.offset(i * 2) = b' ';
-            *vga_buffer.offset(i * 2 + 1) = 0x0f;
-        }
-        
-        // Write boot message
-        let boot_msg = b"CRONOS W-OS v2.0 - SO SOBERANO (Exokernel + Grafos)";
-        for (i, &byte) in boot_msg.iter().enumerate() {
-            *vga_buffer.offset(i as isize * 2) = byte;
-            *vga_buffer.offset(i as isize * 2 + 1) = 0x0b; // Cyan
+        core::arch::asm!("out dx, al", in("dx") 0xE9u16, in("al") b'A');
+        core::arch::asm!("out dx, al", in("dx") 0xE9u16, in("al") b'\n');
+    }
+    
+    // LOG 1: Entrada
+    crate::serial_println!("Kernel Main: Entrada confirmada.");
+    
+    // LOG 2: Inicio de inicializacion del kernel
+    crate::serial_println!("Iniciando inicializacion del kernel...");
+    
+    unsafe { core::arch::asm!("out dx, al", in("dx") 0xE9u16, in("al") b'B'); }
+    
+    crate::serial_println!("kernel_main: GDT init");
+    gdt::init_gdt();
+    crate::serial_println!("kernel_main: IDT init");
+    interrupts::init_idt();
+    crate::serial_println!("kernel_main: PIC init");
+    interrupts::init_pics();
+    crate::serial_println!("kernel_main: PS2/SYSTEM init");
+    let _ = ps2::Ps2Keyboard::initialize();
+    // DEBUG: leer CS register
+    unsafe {
+        let mut cs: u16;
+        core::arch::asm!("mov {cs}, cs", cs = out(reg) cs);
+        crate::serial_println!("kernel_main: CS register = {:#x}", cs);
+    }
+    crate::serial_println!("kernel_main: enable interrupts");
+    x86_64::instructions::interrupts::enable();
+    crate::serial_println!("kernel_main: interrupts enabled!");
+    
+    // Heap despues de GDT/IDT para manejo de excepciones
+    crate::serial_println!("kernel_main: init allocator");
+    // Diagnóstico Gemini: verificar SS register
+    let ss_val: u16;
+    unsafe { core::arch::asm!("mov {ss_val}, ss", ss_val = out(reg) ss_val); }
+    crate::serial_println!("SS register antes de init_allocator: {:#x}", ss_val);
+    // Diagnóstico Gemini: verificar PIC Master IMR
+    unsafe {
+        let master_mask = x86_64::instructions::port::PortReadOnly::<u8>::new(0x21).read();
+        crate::serial_println!("PIC Master IMR: {:#04x}", master_mask);
+    }
+    init_allocator(boot_info);
+    unsafe { core::arch::asm!("out dx, al", in("dx") 0xE9u16, in("al") b'C'); }
+    crate::serial_println!("kernel_main: about to create HardwareScanner");
+
+    let mut scanner = hardware::HardwareScanner::new();
+    let pci_devices = scanner.scan_pci_bus();
+    crate::serial_println!("PCI devices found: {}", pci_devices.len());
+    crate::serial_println!("DEBUG: before hex print");
+    let hhdm_copy = boot_info.hhdm_offset;
+    let rsdp_copy = boot_info.rsdp;
+    crate::serial_println!("DEBUG: hhdm_offset = 0x{:x}", hhdm_copy);
+    crate::serial_println!("DEBUG: rsdp = 0x{:x}", rsdp_copy.unwrap_or(0));
+    crate::serial_println!("DEBUG: after hex print");
+    crate::serial_println!("DEBUG: boot_info.rsdp = 0x{:x}", boot_info.rsdp.unwrap_or(0));
+    let mut acpi_manager = acpi::AcpiManager::new(boot_info.hhdm_offset, boot_info.rsdp);
+    let acpi_status = acpi_manager.initialize();
+
+    let fb_info = boot_info.framebuffer.clone();
+    
+    let (status, graph_kernel, layer_arch, lumen_layer, mut hive_ai) = initialize_system_with_graph_and_layers(fb_info.as_ref());
+
+    // Initialize ALL Hive AI subsystems
+    if let Some(ref mut hive) = hive_ai {
+        let _ = hive.initialize_broker(1);
+        let _ = hive.initialize_agent_manager();
+        hive.initialize_swarm();
+        hive.initialize_multiversal();
+        if let Some(ref gk) = graph_kernel {
+            hive.initialize_openai(gk.clone());
+            hive.initialize_localai(gk.clone());
         }
     }
 
-    // Inicializar GDT e IDT
-    gdt::init_gdt();
-    interrupts::init_idt();
-    interrupts::init_pics();
-    ps2::Ps2Keyboard::initialize();
-    x86_64::instructions::interrupts::enable();
-
-    // Inicializar hardware real (PCI y ACPI)
-    let mut scanner = hardware::HardwareScanner::new();
-    let pci_devices = scanner.scan_pci_bus();
-
-    let mut acpi_manager = acpi::AcpiManager::new();
-    let acpi_status = acpi_manager.initialize();
-
-    // Initialize the system architecture
-    let (status, graph_kernel, layer_arch) = initialize_system_with_graph_and_layers(vga_buffer);
-
     if status {
-        if let Some(gk) = graph_kernel {
-            scanner.register_in_graph(&gk);
+        if let Some(ref gk) = graph_kernel {
+            scanner.register_in_graph(gk);
 
-            // Registrar ACPI y habilitar SMP (Multinúcleo)
             if acpi_status.is_ok() {
+                // Reactivar código de AcpiManager
                 acpi_manager.set_graph_kernel(gk.clone());
                 let _ = acpi_manager.enumerate_acpi_devices();
 
-                if let Some(madt) = &acpi_manager.madt {
-                    let core_count = madt.processor_count();
-                    let msg = format!("SOPORTE MULTINUCLEO DETECTADO: {} CORES", core_count);
-                    for (i, byte) in msg.as_bytes().iter().enumerate() {
-                        unsafe {
-                            *vga_buffer.offset((i + 320) as isize * 2) = *byte;
-                            *vga_buffer.offset((i + 320) as isize * 2 + 1) = 0x0d; // Light Magenta
-                        }
-                    }
-                }
+                // if let Some(madt) = &acpi_manager.madt {
+                //     let core_count = madt.processor_count();
+                //     serial_println!("SMP: {} cores detected", core_count);
+                // }
             }
 
-            // FASE 2: Inicializar NVMe y xHCI con direcciones MMIO reales del scanner PCI
             for dev in &pci_devices {
                 let bar0 = dev.get_bar0_addr();
-                let bar0 = dev.get_bar0_addr();
-                if dev.class_id == 0x01 && dev.subclass_id == 0x08 { // NVMe
+                let hhdm_off = boot_info.hhdm_offset;
+                if dev.class_id == 0x01 && dev.subclass_id == 0x08 {
                     let mut nvme = nvme::NvmeController::new(dev.bus, dev.device);
-                    if nvme.initialize(boot_info.hhdm_offset + bar0).is_ok() {
+                    if nvme.initialize(hhdm_off + bar0).is_ok() {
                         let nvme_node = gk.create_node(
                             graph_kernel::NodeType::HardwareDevice(graph_kernel::HardwareType::Nvme),
                             format!("nvme_{:02x}:{:02x}", dev.bus, dev.device),
                         );
                         gk.create_edge(gk.root_node().unwrap(), nvme_node, graph_kernel::EdgeType::Ownership);
                     }
-                } else if dev.class_id == 0x0C && dev.subclass_id == 0x03 { // xHCI (USB 3.0)
-                    let mut xhci = usb_xhci::XhciController::new(boot_info.hhdm_offset + bar0);
+                } else if dev.class_id == 0x0C && dev.subclass_id == 0x03 {
+                    let mut xhci = usb_xhci::XhciController::new(hhdm_off + bar0);
                     if xhci.initialize().is_ok() {
                         xhci.probe_ports();
                         let xhci_node = gk.create_node(
@@ -258,8 +303,8 @@ pub extern "C" fn kernel_main(boot_info: &BootInfo) -> ! {
                         );
                         gk.create_edge(gk.root_node().unwrap(), xhci_node, graph_kernel::EdgeType::Ownership);
                     }
-                } else if dev.class_id == 0x02 && dev.subclass_id == 0x00 { // Ethernet (e1000e)
-                    let mut nic = e1000e::E1000eDriver::new(boot_info.hhdm_offset + bar0);
+                } else if dev.class_id == 0x02 && dev.subclass_id == 0x00 {
+                    let mut nic = e1000e::E1000eDriver::new(hhdm_off + bar0);
                     if nic.initialize().is_ok() {
                         let nic_node = gk.create_node(
                             graph_kernel::NodeType::HardwareDevice(graph_kernel::HardwareType::Network),
@@ -270,105 +315,185 @@ pub extern "C" fn kernel_main(boot_info: &BootInfo) -> ! {
                 }
             }
 
-            // FASE 2.5: Virtualización y Contenedores en el Grafo
+            crate::serial_println!("About to create hypervisor node");
             let hv_node = gk.create_node(
                 graph_kernel::NodeType::VirtualizationResource,
                 String::from("hypervisor_root"),
             );
+            crate::serial_println!("Hypervisor node created");
             gk.create_edge(gk.root_node().unwrap(), hv_node, graph_kernel::EdgeType::Ownership);
+            crate::serial_println!("Hypervisor edge created");
 
-            // FASE 5: IA Colmena
-            if let Some(arch) = layer_arch {
-                let mut colmena = colmena_integration::ColmenaObserverBridge::new(arch);
+            if let Some(ref arch) = layer_arch {
+                crate::serial_println!("About to create ColmenaObserverBridge");
+                let mut colmena = colmena_integration::ColmenaObserverBridge::new(arch.clone());
+                crate::serial_println!("ColmenaObserverBridge created");
                 colmena.init();
+                crate::serial_println!("Colmena init done");
                 colmena.register_cpu(scanner.cpu_info.clone());
                 colmena.update_metrics();
+                crate::serial_println!("Colmena update_metrics done");
             }
 
-            // Iniciar Shell Soberana
-            let mut shell = shell::SovereignShell::new(gk.clone());
-            shell.run();
+            // ── CRONOS ESENCIA: Exokernel + Memoria + Procesos + Contenedores ──
+            crate::serial_println!("Exokernel: initializing MemoryManager");
+            let mut memory_regions = Vec::new();
+            for region_opt in &boot_info.usable_regions {
+                if let Some(region) = region_opt {
+                    memory_regions.push(MemoryRegion {
+                        range: MemoryRange { start_frame_number: region.base / 4096, end_frame_number: (region.base + region.length) / 4096 },
+                        region_type: MemoryRegionType::Usable,
+                    });
+                }
+            }
+            let mut memory_manager = unsafe {
+                MemoryManager::new_with_params(boot_info.hhdm_offset, &memory_regions)
+            };
+            memory_manager.register_in_graph(gk);
+            crate::serial_println!("Exokernel: MemoryManager ready");
+
+            let mut exokernel = ExokernelIntegration::new(gk.clone());
+            exokernel.initialize(&memory_manager);
+            crate::serial_println!("Exokernel: Integration initialized, metrics: nodes={}, edges={}",
+                exokernel.get_exokernel_metrics().total_nodes,
+                exokernel.get_exokernel_metrics().total_edges);
+
+            use scheduler::SchedulerConfig;
+            let mut scheduler = Scheduler::new(SchedulerConfig::default());
+            scheduler.set_graph_kernel(gk.clone());
+            let _init_proc = scheduler.create_process(
+                String::from("cronos_init"),
+                scheduler::ProcessPriority::High,
+            );
+            crate::serial_println!("Scheduler: initialized, processes={}", scheduler.process_count());
+
+            let mut container_runtime = CronosContainerRuntime::new();
+            container_runtime.set_graph_kernel(gk.clone());
+            let _c1 = container_runtime.create_container(
+                String::from("cronos-base"),
+                String::from("crOS:v1"),
+            );
+            crate::serial_println!("Container Runtime: ready, containers={}", container_runtime.stats().total_containers);
         }
     }
 
-    unsafe {
-        // Write status
-        let status_msg = if status {
-            b"SISTEMA INICIALIZADO - CAPABILITIES Y GRAFOS ACTIVOS"
-        } else {
-            b"ERROR EN INICIALIZACION DE ARQUITECTURA CRONOS      "
-        };
-        
-        for (i, &byte) in status_msg.iter().enumerate() {
-            *vga_buffer.offset((i + 80) as isize * 2) = byte;
-            *vga_buffer.offset((i + 80) as isize * 2 + 1) = if status { 0x0a } else { 0x0c }; // Green or Red
-        }
-        
-        // Write architecture info
-        let arch_msg = b"CAPAS: [KERNEL] -> [AEGIS] -> [LUMEN] -> [GENESIS]";
-        for (i, &byte) in arch_msg.iter().enumerate() {
-            *vga_buffer.offset((i + 160) as isize * 2) = byte;
-            *vga_buffer.offset((i + 160) as isize * 2 + 1) = 0x0e; // Yellow
-        }
-        
-        let dev_count_msg = format!("DISPOSITIVOS PCI DETECTADOS: {}", pci_devices.len());
-        for (i, byte) in dev_count_msg.as_bytes().iter().enumerate() {
-            *vga_buffer.offset((i + 240) as isize * 2) = *byte;
-            *vga_buffer.offset((i + 240) as isize * 2 + 1) = 0x07; // Light Gray
+    if let Some(ref lumen) = lumen_layer {
+        invoke_capability_mut(&lumen.compositor(), |comp| {
+            // Welcome window
+            let welcome = comp.create_window(
+                String::from("Welcome to CRONOS OS"),
+                Rect::new(80, 40, 700, 440),
+            );
+            if let Some(win) = comp.get_window_mut(welcome) {
+                win.background_color = 0xFF2D2D3F;
+            }
+            // Terminal window
+            let term = comp.create_window(
+                String::from("Terminal - bash"),
+                Rect::new(160, 100, 650, 380),
+            );
+            if let Some(win) = comp.get_window_mut(term) {
+                win.background_color = 0xFF1A1A2E;
+            }
+            // Hive AI Monitor window
+            let hive_mon = comp.create_window(
+                String::from("Hive AI Monitor"),
+                Rect::new(300, 180, 550, 300),
+            );
+            if let Some(win) = comp.get_window_mut(hive_mon) {
+                win.background_color = 0xFF1A1A3E;
+            }
+            // Create COSMIC panel (taskbar) - full width at bottom
+            let fb_w = comp.resolution().0;
+            let fb_h = comp.resolution().1;
+            let panel = comp.create_window(
+                String::from("COSMIC Panel"),
+                Rect::new(0, (fb_h - 48) as i32, fb_w, 48),
+            );
+            if let Some(win) = comp.get_window_mut(panel) {
+                win.window_type = compositor::WindowType::Popup;
+                win.z_order = 9999;
+                win.background_color = 0xFF1E1E2E;
+                win.has_shadow = false;
+            }
+            comp.focus_window(term);
+        });
+    }
+
+    serial_println!("System init status: {}", if status { "OK" } else { "FAILED" });
+    serial_println!("PCI devices: {}", pci_devices.len());
+
+    use crate::interrupts::pop_scancode;
+    use crate::ps2::scancode_to_char;
+
+    // Rendering loop
+    if let Some(ref lumen) = lumen_layer {
+        loop {
+            // Poll keyboard
+            while let Some(sc) = pop_scancode() {
+                if let Some(ch) = scancode_to_char(sc) {
+                    serial_print!("{}", ch);
+                } else {
+                    serial_print!("[SC:{:#x}]", sc);
+                }
+            }
+
+            invoke_capability_mut(&lumen.compositor(), |comp| {
+                comp.render();
+            });
+            for _ in 0..50000 {
+                core::hint::spin_loop();
+            }
         }
     }
-    
+
     loop {}
 }
 
 fn initialize_system(vga_buffer: *mut u8) -> bool {
-    initialize_system_with_graph_and_layers(vga_buffer).0
+    let _ = initialize_system_with_graph_and_layers(None);
+    true
 }
 
-fn initialize_system_with_graph_and_layers(vga_buffer: *mut u8) -> (bool, Option<GraphKernel>, Option<LayerArchitecture>) {
-    // Simplified initialization for no_std environment
-    // The full architecture is implemented in the modules
-    
-    // Step 1: Initialize GraphKernel (core of exokernel)
+fn initialize_system_with_graph_and_layers(fb_info: Option<&FramebufferInfo>) -> (bool, Option<GraphKernel>, Option<LayerArchitecture>, Option<LumenLayer>, Option<HiveAi>) {
     let mut graph_kernel = GraphKernel::new();
     graph_kernel.initialize();
     
     let gk_return = graph_kernel.clone();
 
-    // Step 2: Initialize 4-Layer Architecture
     let mut layer_architecture = LayerArchitecture::new(graph_kernel);
     layer_architecture.initialize();
     
     let arch_return = layer_architecture.clone();
 
-    // Step 3: Initialize individual layers
     let kernel_layer = KernelLayer::new(layer_architecture.clone());
     kernel_layer.initialize();
     
     let aegis_layer = AegisLayer::new(layer_architecture.clone());
     aegis_layer.initialize();
+
+    let (fb_addr, fb_width, fb_height) = if let Some(fb) = fb_info {
+        (fb.address as *mut u8, fb.width as u32, fb.height as u32)
+    } else {
+        (0xb8000 as *mut u8, 640, 480)
+    };
     
-    // Step 4: Create GPU driver wrapped in capability
-    let gpu_driver_cap = DriverFactory::create_gpu(0x1234, 0x5678, vga_buffer, 640, 480);
+    let gpu_driver_cap = DriverFactory::create_gpu(0x1234, 0x5678, fb_addr, fb_width, fb_height);
     
-    // Step 5: Initialize Compositor with GPU capability
-    let compositor = Compositor::new(layer_architecture.graph_kernel().clone());
-    let mut compositor = compositor;
+    let mut compositor = Compositor::new(layer_architecture.graph_kernel().clone());
+    compositor.set_resolution(fb_width, fb_height);
     compositor.initialize(gpu_driver_cap.capability());
-    
-    // Step 6: Initialize LUMEN layer with compositor
+
     let lumen_layer = LumenLayer::new(layer_architecture.clone(), compositor);
     lumen_layer.initialize();
     
-    // Step 7: Initialize GENESIS layer
     let genesis_layer = GenesisLayer::new(layer_architecture.clone());
     genesis_layer.initialize();
     
-    // Step 8: Initialize Hive AI as bridge capability between all layers
     let hive_ai = HiveAi::new(layer_architecture);
     hive_ai.initialize();
     
-    (true, Some(gk_return), Some(arch_return))
+    (true, Some(gk_return), Some(arch_return), Some(lumen_layer), Some(hive_ai))
 }
 
 // Helper function to invoke capability mut
@@ -383,8 +508,14 @@ where
 }
 
 #[panic_handler]
-fn panic(info: &PanicInfo) -> ! {
-    // BUG #12 corregido: usar serial_panic para imprimir archivo, línea y mensaje
-    serial_panic(info);
-    loop {}
+fn panic(_info: &PanicInfo) -> ! {
+    // Escritura cruda usando instrucción out para puerto serial
+    // Esto es solo para diagnóstico
+    unsafe {
+        let msg = b"PANIC DETECTADO\r\n";
+        for &byte in msg {
+            core::arch::asm!("out dx, al", in("dx") 0x3f8u16, in("al") byte, options(nomem, nostack));
+        }
+    }
+    loop { unsafe { core::arch::asm!("hlt"); } }
 }

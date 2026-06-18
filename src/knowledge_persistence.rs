@@ -154,6 +154,7 @@ impl UserContext {
 }
 
 /// Sistema de persistencia de conocimiento
+#[derive(Debug, Clone)]
 pub struct KnowledgePersistenceSystem {
     /// Entradas de conocimiento
     pub knowledge_entries: Vec<KnowledgeEntry>,

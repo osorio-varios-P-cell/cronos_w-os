@@ -104,6 +104,7 @@ impl EvolvableComponentConfig {
 }
 
 /// Componente evolucionable
+#[derive(Debug, Clone)]
 pub struct EvolvableComponent {
     /// Configuración del componente
     pub config: EvolvableComponentConfig,
@@ -247,6 +248,7 @@ impl EvolvableComponent {
 }
 
 /// Integración Live Evolution para CRONOS W-OS (Capa GENESIS)
+#[derive(Debug, Clone)]
 pub struct CronosLiveEvolutionIntegration {
     /// Componentes registrados (keyed by component_id)
     pub components: BTreeMap<u64, EvolvableComponent>,

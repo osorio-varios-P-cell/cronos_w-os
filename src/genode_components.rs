@@ -260,6 +260,7 @@ impl GenodeComponent {
 }
 
 /// Gestor de componentes Genode
+#[derive(Debug, Clone)]
 pub struct GenodeComponentManager {
     /// Componentes registrados (keyed by component_id)
     pub components: BTreeMap<u64, GenodeComponent>,

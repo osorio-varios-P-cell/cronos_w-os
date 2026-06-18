@@ -117,6 +117,7 @@ impl PackageRepository {
 }
 
 /// Gestor de paquetes
+#[derive(Debug, Clone)]
 pub struct CronosPackageManager {
     pub packages: BTreeMap<u64, Package>,
     pub repositories: BTreeMap<u64, PackageRepository>,

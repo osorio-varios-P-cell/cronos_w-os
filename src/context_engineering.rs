@@ -130,6 +130,7 @@ impl ContextTemplate {
 }
 
 /// Sistema de ingeniería de contexto
+#[derive(Debug, Clone)]
 pub struct ContextEngineeringSystem {
     /// Componentes de contexto activos
     pub active_components: Vec<ContextComponent>,

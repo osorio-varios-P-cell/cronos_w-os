@@ -152,6 +152,7 @@ impl UpdateRepository {
 }
 
 /// Sistema de actualización
+#[derive(Debug, Clone)]
 pub struct CronosUpdateSystem {
     pub config: UpdateConfig,
     pub current_version: SystemVersion,

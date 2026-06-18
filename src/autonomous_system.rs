@@ -10,6 +10,9 @@ use alloc::format;
 use alloc::vec::Vec;
 use crate::capability::{Capability, Cell, CapabilityId, invoke_capability, invoke_capability_mut};
 use crate::graph_kernel::{GraphKernel, NodeId, NodeType, EdgeType};
+use crate::metacognition::MetacognitionSystem;
+use crate::hardware_awareness::HardwareAwarenessSystem;
+use crate::hive_ai::HiveAi;
 
 /// Estado del sistema autónomo
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -186,6 +189,12 @@ pub struct AutonomousSystem {
     pub metrics: AutonomyMetrics,
     /// Siguiente ID de decisión
     pub next_decision_id: u64,
+    /// FASE 1: Metacognition System (cerebro del sistema)
+    pub metacognition: Option<MetacognitionSystem>,
+    /// FASE 1: Hardware Awareness System (conciencia del hardware)
+    pub hardware_awareness: Option<HardwareAwarenessSystem>,
+    /// FASE 1: Hive AI (orquestador de servicios externos y puente entre capas)
+    pub hive_ai: Option<HiveAi>,
 }
 
 impl AutonomousSystem {
@@ -199,6 +208,74 @@ impl AutonomousSystem {
             graph_node_id: None,
             metrics: AutonomyMetrics::default(),
             next_decision_id: 1,
+            metacognition: None,
+            hardware_awareness: None,
+            hive_ai: None,
+        }
+    }
+
+    /// FASE 1: Initialize metacognition and hardware awareness integration
+    pub fn initialize_cognitive_systems(&mut self) -> Result<(), String> {
+        // Create hardware awareness system
+        let hw_awareness = HardwareAwarenessSystem::new();
+        
+        // Create metacognition system
+        let mut metacognition = MetacognitionSystem::new();
+        
+        // Connect metacognition with hardware awareness
+        metacognition.set_hardware_awareness(hw_awareness);
+        
+        // Store in autonomous system (cerebro principal)
+        self.hardware_awareness = Some(metacognition.get_hardware_state().map(|_| HardwareAwarenessSystem::new()).unwrap_or(HardwareAwarenessSystem::new()));
+        self.metacognition = Some(metacognition);
+        
+        Ok(())
+    }
+
+    /// FASE 1: Initialize Hive AI as optimization tool
+    pub fn initialize_hive_ai(&mut self, architecture: crate::layers::LayerArchitecture) -> Result<(), String> {
+        let mut hive_ai = HiveAi::new(architecture);
+        hive_ai.initialize();
+        self.hive_ai = Some(hive_ai);
+        Ok(())
+    }
+
+    /// FASE 1: Update from hardware state and process through metacognition
+    pub fn process_hardware_state(&mut self, hw_state: crate::hardware_awareness::HardwareState) -> Vec<crate::metacognition::MetacognitiveThought> {
+        if let Some(ref mut metacognition) = self.metacognition {
+            let thoughts = metacognition.update_from_hardware_state(hw_state);
+            
+            // If critical thoughts were generated, trigger autonomous decision
+            if !thoughts.is_empty() {
+                self.trigger_hardware_response();
+            }
+            
+            thoughts
+        } else {
+            Vec::new()
+        }
+    }
+
+    /// FASE 1: Trigger autonomous response based on hardware state
+    fn trigger_hardware_response(&mut self) {
+        if let Some(ref hw_awareness) = self.hardware_awareness {
+            if hw_awareness.is_critical_state() {
+                // Create autonomous decision for hardware response
+                let decision = AutonomousDecision {
+                    decision_id: self.next_decision_id,
+                    decision_type: DecisionType::Maintenance,
+                    priority: DecisionPriority::Critical,
+                    description: String::from("Critical hardware state detected - initiating response"),
+                    action: String::from("Execute hardware mitigation procedures"),
+                    confidence: 0.9,
+                    created_at: 0, // Would use real timestamp
+                    executed: false,
+                    successful: None,
+                };
+                
+                self.decisions.push(decision);
+                self.next_decision_id += 1;
+            }
         }
     }
 

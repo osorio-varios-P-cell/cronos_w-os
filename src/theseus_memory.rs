@@ -84,6 +84,7 @@ impl MemoryRegion {
 }
 
 /// Gestor de memoria con single address space (inspirado en Theseus)
+#[derive(Debug, Clone)]
 pub struct SingleAddressSpaceManager {
     pub regions: BTreeMap<u64, MemoryRegion>,
     pub next_region_id: u64,

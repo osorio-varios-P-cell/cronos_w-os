@@ -254,6 +254,7 @@ impl NinePConnection {
 }
 
 /// Gestor de protocolo 9p
+#[derive(Debug, Clone)]
 pub struct NinePManager {
     /// Conexiones 9p registradas (keyed by connection_id)
     pub connections: BTreeMap<u64, NinePConnection>,

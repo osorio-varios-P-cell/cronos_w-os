@@ -196,6 +196,7 @@ impl Container {
 }
 
 /// Runtime de contenedores
+#[derive(Debug, Clone)]
 pub struct CronosContainerRuntime {
     pub containers: BTreeMap<u64, Container>,
     pub next_container_id: u64,

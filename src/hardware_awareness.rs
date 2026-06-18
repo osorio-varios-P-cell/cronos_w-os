@@ -242,6 +242,7 @@ impl Default for HardwareState {
 }
 
 /// Sistema de conciencia del hardware
+#[derive(Clone)]
 pub struct HardwareAwarenessSystem {
     /// Estado actual del hardware
     current_state: HardwareState,

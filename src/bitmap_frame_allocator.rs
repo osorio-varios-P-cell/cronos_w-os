@@ -47,12 +47,12 @@ impl MemZone {
     }
 }
 
-/// Asignador de frames basado en bitmap estático.
+/// Asignador de frames basado en bitmap dinámico.
 ///
 /// `bitmap[i]` tiene el bit `j` a 1 si el frame `i*64+j` está **libre**.
 #[derive(Debug)]
 pub struct BitmapFrameAllocator {
-    bitmap: [u64; BITMAP_WORDS],
+    bitmap: alloc::vec::Vec<u64>,
     total_frames:  usize,
     free_frames:   usize,
     base_addr:     u64,   // dirección física del primer frame gestionado
@@ -60,9 +60,9 @@ pub struct BitmapFrameAllocator {
 
 impl BitmapFrameAllocator {
     /// Crea un asignador vacío (todos los frames marcados como usados).
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         Self {
-            bitmap: [0u64; BITMAP_WORDS],
+            bitmap: alloc::vec![0u64; BITMAP_WORDS],
             total_frames: 0,
             free_frames: 0,
             base_addr: 0,

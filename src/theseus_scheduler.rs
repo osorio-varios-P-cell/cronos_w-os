@@ -39,6 +39,7 @@ impl Default for IntrusiveListNode {
 }
 
 /// Lista enlazada intrusiva (inspirado en Theseus)
+#[derive(Debug, Clone)]
 pub struct IntrusiveList<T> {
     pub head: Option<*mut IntrusiveListNode>,
     pub tail: Option<*mut IntrusiveListNode>,
@@ -182,6 +183,7 @@ impl IntrusiveProcess {
 }
 
 /// Cola de prioridad intrusiva (inspirado en Theseus)
+#[derive(Debug, Clone)]
 pub struct IntrusivePriorityQueue {
     pub queues: [IntrusiveList<IntrusiveProcess>; 32], // 32 niveles de prioridad
     pub bitmap: u32, // Bitmap para encontrar la cola no vacía de mayor prioridad
@@ -266,6 +268,7 @@ impl Default for IntrusivePriorityQueue {
 }
 
 /// Scheduler optimizado con técnicas de Theseus
+#[derive(Debug, Clone)]
 pub struct TheseusScheduler {
     pub ready_queue: IntrusivePriorityQueue,
     pub current_process: Option<*mut IntrusiveProcess>,

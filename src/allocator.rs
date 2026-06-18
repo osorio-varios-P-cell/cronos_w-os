@@ -2,30 +2,36 @@
 
 use core::alloc::{GlobalAlloc, Layout};
 use core::sync::atomic::{AtomicUsize, Ordering};
-use linked_list_allocator::LockedHeap;
 
 extern "C" {
     static mut __heap_start: u8;
     static mut __heap_end: u8;
 }
 
-struct BumpAllocator {
-    heap_start: usize,
-    heap_size: usize,
+pub struct BumpAllocator {
+    heap_start: AtomicUsize,
+    heap_size: AtomicUsize,
     next: AtomicUsize,
 }
 
+unsafe impl Sync for BumpAllocator {}
+
 unsafe impl GlobalAlloc for BumpAllocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        let alloc_start = self.next.fetch_add(layout.size(), Ordering::Relaxed);
-        let alloc_end = alloc_start + layout.size();
-
-        if alloc_end > self.heap_size {
-            // Out of memory
-            self.next.fetch_sub(layout.size(), Ordering::Relaxed);
+        let align = layout.align();
+        let size = layout.size();
+        
+        let current = self.next.load(Ordering::Relaxed);
+        let aligned = (current + align - 1) & !(align - 1);
+        let new_next = aligned + size;
+        
+        let heap_size = self.heap_size.load(Ordering::Relaxed);
+        if new_next > heap_size {
             core::ptr::null_mut()
         } else {
-            (self.heap_start + alloc_start) as *mut u8
+            self.next.store(new_next, Ordering::Relaxed);
+            let heap_start = self.heap_start.load(Ordering::Relaxed);
+            (heap_start + aligned) as *mut u8
         }
     }
 
@@ -34,30 +40,39 @@ unsafe impl GlobalAlloc for BumpAllocator {
     }
 }
 
+impl BumpAllocator {
+    /// Compatibilidad con interfaz LockedHeap antigua
+    pub fn lock(&self) -> &Self {
+        &self
+    }
+    
+    /// Inicialización compatible (no-op para bump allocator)
+    pub fn init(&self, _ptr: *mut u8, _size: usize) {
+        // Bump allocator se inicializa via init_allocator()
+    }
+}
+
 #[global_allocator]
-pub static ALLOCATOR: LockedHeap = LockedHeap::empty();
+pub static ALLOCATOR: BumpAllocator = BumpAllocator {
+    heap_start: AtomicUsize::new(0),
+    heap_size: AtomicUsize::new(0),
+    next: AtomicUsize::new(0),
+};
 
 use crate::boot::BootInfo;
 
-pub fn init_allocator(boot_info: &BootInfo) {
+pub fn init_allocator(_boot_info: &BootInfo) {
     unsafe {
-        // BUG #16 Corregido: Buscar una región usable real en el mapa de memoria
-        // En lugar de una dirección estática, usamos la primera región usable >= 32MB
-        let heap_size = 32 * 1024 * 1024;
-        let mut heap_start = 0;
-
-        for region in boot_info.usable_regions.iter().flatten() {
-            if region.length >= heap_size as u64 {
-                heap_start = boot_info.hhdm_offset + region.base;
-                break;
-            }
+        extern "C" {
+            static mut HEAP_MEMORY: [u8; 2 * 1024 * 1024];
         }
-
-        if heap_start != 0 {
-            ALLOCATOR.lock().init(heap_start as *mut u8, heap_size);
-        } else {
-            // Fallback de emergencia si no hay regiones grandes (no debería ocurrir en HW real)
-            ALLOCATOR.lock().init((boot_info.hhdm_offset + 0x2000000) as *mut u8, heap_size);
-        }
+        const HEAP_SIZE: usize = 2 * 1024 * 1024;
+        let heap_start = &raw mut HEAP_MEMORY as usize;
+        
+        crate::serial_println!("init_allocator: using static heap at {:#x}, size={:#x}", heap_start, HEAP_SIZE);
+        ALLOCATOR.heap_start.store(heap_start, Ordering::Relaxed);
+        ALLOCATOR.heap_size.store(HEAP_SIZE, Ordering::Relaxed);
+        ALLOCATOR.next.store(0, Ordering::Relaxed);
+        crate::serial_println!("init_allocator: BumpAllocator initialized OK");
     }
 }

@@ -1,0 +1,84 @@
+vbe: Initialising...
+vbe: Version: 3.0
+vbe: OEM: SeaBIOS VBE(C) 2011
+vbe: Graphics vendor: SeaBIOS Developers
+vbe: Product name: SeaBIOS VBE Adapter
+vbe: Product revision: Rev. 1
+edid: Success.
+vbe: EDID detected screen resolution of 1280x800
+vbe: Found matching mode 0x17a, attempting to set...
+vbe: Framebuffer address: 0xfd000000
+edid: Success.
+[2J[H
+[2;27H[36mLimine 9.6.7 (x86-64, BIOS)[0m
+
+
+
+[12;1H                                  [7m CRONOS OS [27m
+                                   FALLBACK [27m
+[4;1H    [32mARROWS[0m Select    [32mENTER[0m Boot    [32mE[0m Edit[4;64H[32mB[0m Blank Entry[14;1H
+
+[24;1H[2K[32mBooting automatically in [92m1[32m, press any key to stop the countdown...[0m[2J[Hlimine: Loading executable `boot():/CRONOS`...
+limine: Physical base:   0x7faa4000
+limine: Virtual base:    0xffffffff80000000
+limine: Slide:           0x0
+limine: ELF entry point: 0xffffffff80018050
+limine: Base revision:   3
+limine: Requests count:  5
+limine: Top of HHDM:     0x80000000
+acpi: Found RSDP at 0xf52e0
+vbe: Initialising...
+vbe: Version: 3.0
+vbe: OEM: SeaBIOS VBE(C) 2011
+vbe: Graphics vendor: SeaBIOS Developers
+vbe: Product name: SeaBIOS VBE Adapter
+vbe: Product revision: Rev. 1
+edid: Success.
+vbe: EDID detected screen resolution of 1280x800
+vbe: Found matching mode 0x17a, attempting to set...
+vbe: Mode was already set, perfect!
+vbe: Framebuffer address: 0xfd000000
+edid: Success.
+paging: 1GiB pages are not supported!
+Memory map entries:
+  Base: 0x1000 Length: 0x51000 Type: 5 | END
+  Base: 0x52000 Length: 0x4d000 Type: 0 | END
+  Base: 0x9fc00 Length: 0x400 Type: 1 | END
+  Base: 0xf0000 Length: 0x10000 Type: 1 | END
+  Base: 0x100000 Length: 0x7f9a4000 Type: 0 | END
+  Base: 0x7faa4000 Length: 0x2d000 Type: 6 | END
+  Base: 0x7fad1000 Length: 0x3f3000 Type: 5 | END
+  Base: 0x7fec4000 Length: 0x5000 Type: 0 | END
+  Base: 0x7fec9000 Length: 0x6000 Type: 5 | END
+  Base: 0x7fecf000 Length: 0x19000 Type: 0 | END
+  Base: 0x7fee8000 Length: 0xf8000 Type: 5 | END
+  Base: 0x7ffe0000 Length: 0x20000 Type: 1 | END
+  Base: 0xfd000000 Length: 0x3e8000 Type: 7 | END
+  Base: 0xfffc0000 Length: 0x40000 Type: 1 | END
+  Base: 0xfd00000000 Length: 0x300000000 Type: 1 | END
+DEBUG: Bucle finalizado correctamente.
+
+Kernel Main: Entrada confirmada.
+Iniciando inicializacion del kernel...
+kernel_main: GDT init
+kernel_main: IDT init
+kernel_main: PIC init
+kernel_main: PS2/SYSTEM init
+[PS2] Teclado inicializado con IRQ1 activo.
+kernel_main: CS register = 0x8
+kernel_main: enable interrupts
+kernel_main: interrupts enabled!
+kernel_main: init allocator
+SS register antes de init_allocator: 0x10
+PIC Master IMR: 0xfe
+init_allocator: hhdm_offset = 0xffff800000000000
+usable region: base=0x52000, len=0x4d000
+usable region: base=0x100000, len=0x7f9a4000
+init_allocator: selected region base=0x100000, heap_start=0xffff800000100000
+init_allocator: calling ALLOCATOR.init(heap_start=0xffff800000100000, size=0x2000000)
+init_allocator: ALLOCATOR.init() returned OK
+kernel_main: about to create HardwareScanner
+PAGE FAULT
+Error Code: PageFaultErrorCode(0x0)
+CR2 (fault addr): 0x40e
+IP: 0xffffffff8001958f

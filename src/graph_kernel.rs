@@ -329,7 +329,7 @@ impl ResourceGraph {
 }
 
 /// The GraphKernel - core of the exokernel with live graph engine
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct GraphKernel {
     graph: Cell<ResourceGraph>,
     root_node: Option<NodeId>,

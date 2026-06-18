@@ -195,6 +195,7 @@ impl Histogram {
 }
 
 /// Logger
+#[derive(Debug, Clone)]
 pub struct Logger {
     pub logger_id: u64,
     pub logs: Vec<LogEntry>,
@@ -283,6 +284,7 @@ impl Logger {
 }
 
 /// Sistema de monitoreo
+#[derive(Debug, Clone)]
 pub struct CronosMonitoringSystem {
     pub loggers: BTreeMap<u64, Logger>,
     pub counters: BTreeMap<u64, Counter>,

@@ -154,6 +154,7 @@ impl InferenceResult {
 }
 
 /// Sistema de integración multi-modelo
+#[derive(Debug, Clone)]
 pub struct MultiModelIntegration {
     /// Modelos configurados
     pub models: Vec<ModelConfig>,

@@ -13,6 +13,7 @@ use alloc::string::{String, ToString};
 use alloc::format;
 use alloc::collections::BTreeMap;
 use crate::capability::{Capability, Cell, CapabilityId, invoke_capability, invoke_capability_mut};
+use crate::cronos_advanced_networking::{CronosAdvancedNetworking, VpnConfig, VpnType, VpnStatus, IPv6Address, IPv6Prefix};
 
 // FASE 13: smoltcp integration (sin std, compatible no_std)
 // Nota: La API de sockets de smoltcp ha cambiado, usando la API actual
@@ -285,6 +286,8 @@ pub struct NetworkManager {
     pub request_history: Vec<HttpRequest>,
     /// Historial de responses
     pub response_history: Vec<HttpResponse>,
+    /// FASE 13: Advanced Networking de CRONOS original (IPv6, VPN, etc.)
+    pub advanced_networking: Option<CronosAdvancedNetworking>,
 }
 
 impl NetworkManager {
@@ -295,7 +298,16 @@ impl NetworkManager {
             graph_kernel_capability: None,
             request_history: Vec::new(),
             response_history: Vec::new(),
+            advanced_networking: None,
         }
+    }
+
+    /// FASE 13: Inicializar advanced networking de CRONOS original
+    pub fn initialize_advanced_networking(&mut self) -> Result<(), String> {
+        let config = crate::cronos_advanced_networking::AdvancedNetworkConfig::new();
+        let advanced = CronosAdvancedNetworking::new(config);
+        self.advanced_networking = Some(advanced);
+        Ok(())
     }
 
     /// Agregar una interfaz de red

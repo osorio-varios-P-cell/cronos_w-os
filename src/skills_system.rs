@@ -271,6 +271,7 @@ impl Default for SkillLibrary {
 }
 
 /// Sistema de habilidades
+#[derive(Debug, Clone)]
 pub struct SkillsSystem {
     /// Biblioteca de habilidades
     pub library: SkillLibrary,

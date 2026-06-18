@@ -100,6 +100,7 @@ impl BtrfsFileEntry {
 }
 
 /// Driver de Btrfs
+#[derive(Debug, Clone)]
 pub struct CronosBtrfsDriver {
     pub mounted: bool,
     pub volume_label: String,

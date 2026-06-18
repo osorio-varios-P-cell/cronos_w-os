@@ -118,6 +118,7 @@ impl RedoxFSInode {
 }
 
 /// Filesystem RedoxFS adaptado
+#[derive(Debug, Clone)]
 pub struct RedoxFS {
     pub blocks: BTreeMap<u64, CowBlock>,
     pub inodes: BTreeMap<u64, RedoxFSInode>,

@@ -7,6 +7,10 @@
 use crate::layers::{Layer, LayerArchitecture};
 use crate::capability::{Capability, Cell, CapabilityId, CapabilityRights, invoke_capability, invoke_capability_mut};
 use crate::graph_kernel::{GraphKernel, GraphStats, NodeId};
+use crate::hive_swarm::HiveSwarm;
+use crate::hive_multiversal::HiveMultiversal;
+use crate::openai_integration::{CronosOpenAIIntegration, OpenAIModelType};
+use crate::localai_integration::{CronosLocalAIIntegration, LocalAIModelType};
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::string::{String, ToString};
 use alloc::format;
@@ -242,6 +246,14 @@ pub struct HiveAi {
     broker: Option<HiveBroker>,
     /// FASE 14: Multi-Agent Manager
     agent_manager: Option<AgentManager>,
+    /// Hive Swarm Engine (v2.7 Synergy)
+    pub swarm: Option<HiveSwarm>,
+    /// Hive Multiversal Engine (v2.6 Quantum Path)
+    pub multiversal: Option<HiveMultiversal>,
+    /// OpenAI Integration (external API)
+    pub openai: Option<CronosOpenAIIntegration>,
+    /// LocalAI Integration (self-hosted models)
+    pub localai: Option<CronosLocalAIIntegration>,
 }
 
 /// FASE 14: Hive Broker - User-space process for managing AI requests
@@ -916,8 +928,12 @@ impl HiveAi {
             generative_responses: BTreeMap::new(),
             ai_memory: AiMemory::new(),
             next_generative_id: 1,
-            broker: None, // FASE 14: Broker initialized separately
-            agent_manager: None, // FASE 14: Agent manager initialized separately
+            broker: None,
+            agent_manager: None,
+            swarm: None,
+            multiversal: None,
+            openai: None,
+            localai: None,
         }
     }
 
@@ -1042,6 +1058,91 @@ impl HiveAi {
                 Ok(())
             }
             None => Err(String::from("Agent manager not initialized")),
+        }
+    }
+
+    // ── Hive Swarm Integration ──
+
+    /// Initialize Hive Swarm engine
+    pub fn initialize_swarm(&mut self) {
+        if self.swarm.is_none() {
+            self.swarm = Some(HiveSwarm::new());
+        }
+    }
+
+    /// Spawn expert agents via Hive Swarm
+    pub fn spawn_expert_swarm(&mut self, roles: &str) -> Option<String> {
+        self.swarm.as_mut().map(|s| {
+            s.spawn_expert(roles);
+            s.orchestrate("Integration with Hive AI layers")
+        })
+    }
+
+    // ── Hive Multiversal Integration ──
+
+    /// Initialize Multiversal engine
+    pub fn initialize_multiversal(&mut self) {
+        if self.multiversal.is_none() {
+            self.multiversal = Some(HiveMultiversal::new());
+        }
+    }
+
+    /// Simulate multiple viable paths for a goal
+    pub fn simulate_paths(&mut self, goal: &str) -> Option<alloc::vec::Vec<crate::hive_multiversal::ViablePath>> {
+        self.multiversal.as_mut().map(|m| m.simulate_paths(goal))
+    }
+
+    // ── OpenAI Integration ──
+
+    /// Initialize OpenAI integration with GraphKernel
+    pub fn initialize_openai(&mut self, gk: GraphKernel) {
+        if self.openai.is_none() {
+            let mut oai = CronosOpenAIIntegration::new();
+            oai.set_graph_kernel(gk);
+            self.openai = Some(oai);
+        }
+    }
+
+    /// Send a chat request to OpenAI through Hive AI
+    pub fn openai_chat(&mut self, client_id: u64, messages: alloc::vec::Vec<String>) -> Result<String, String> {
+        match self.openai.as_mut() {
+            Some(oai) => oai.send_chat(client_id, messages),
+            None => Err("OpenAI not initialized".into()),
+        }
+    }
+
+    /// Create a default OpenAI client
+    pub fn openai_create_default(&mut self, model: OpenAIModelType, api_key: String) -> Result<u64, String> {
+        match self.openai.as_mut() {
+            Some(oai) => oai.create_default_client(model, api_key),
+            None => Err("OpenAI not initialized".into()),
+        }
+    }
+
+    // ── LocalAI Integration ──
+
+    /// Initialize LocalAI integration with GraphKernel
+    pub fn initialize_localai(&mut self, gk: GraphKernel) {
+        if self.localai.is_none() {
+            let mut lai = CronosLocalAIIntegration::new();
+            lai.set_graph_kernel(gk);
+            self.localai = Some(lai);
+        }
+    }
+
+    /// Process a chat request through LocalAI
+    pub fn localai_chat(&mut self, model_id: u64, prompt: String) -> Result<String, String> {
+        match self.localai.as_mut() {
+            Some(lai) => lai.process_chat(model_id, prompt),
+            None => Err("LocalAI not initialized".into()),
+        }
+    }
+
+    /// Create a default LocalAI model
+    pub fn localai_create_default(&mut self, model_type: LocalAIModelType, name: String, path: String) -> Result<u64, String> {
+        match self.localai.as_mut() {
+            Some(lai) => lai.create_default_model(model_type, name, path),
+            None => Err("LocalAI not initialized".into()),
         }
     }
 

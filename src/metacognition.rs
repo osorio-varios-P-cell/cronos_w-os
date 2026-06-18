@@ -9,6 +9,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use alloc::vec;
 use alloc::format;
+use crate::hardware_awareness::{HardwareAwarenessSystem, HardwareState, HardwareChangeEvent, ChangeSeverity};
 
 /// Tipo de pensamiento metacognitivo
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -155,6 +156,8 @@ pub struct MetacognitionSystem {
     pub self_evaluation: f64,
     /// Nivel de autoconciencia (0-100)
     pub self_awareness_level: u8,
+    /// Sistema de awareness del hardware (integración Fase 1)
+    pub hardware_awareness: Option<HardwareAwarenessSystem>,
 }
 
 impl MetacognitionSystem {
@@ -166,7 +169,51 @@ impl MetacognitionSystem {
             strategies: Vec::new(),
             self_evaluation: 0.5,
             self_awareness_level: 50,
+            hardware_awareness: None,
         }
+    }
+
+    /// Establecer el sistema de awareness del hardware (integración Fase 1)
+    pub fn set_hardware_awareness(&mut self, hardware_awareness: HardwareAwarenessSystem) {
+        self.hardware_awareness = Some(hardware_awareness);
+    }
+
+    /// Actualizar desde el estado del hardware (integración Fase 1)
+    pub fn update_from_hardware_state(&mut self, new_state: HardwareState) -> Vec<MetacognitiveThought> {
+        let mut new_thoughts = Vec::new();
+
+        if let Some(ref mut hw_awareness) = self.hardware_awareness {
+            let changes = hw_awareness.update_state(new_state);
+            let is_critical = hw_awareness.is_critical_state();
+
+            // Generar pensamientos metacognitivos basados en cambios críticos
+            for change in changes {
+                if change.is_critical() {
+                    let thought = MetacognitiveThought::new(
+                        format!("hw_change_{}", self.thoughts.len()),
+                        MetacognitiveThoughtType::Monitoring,
+                        format!("Critical hardware change detected: {} - Previous: {}, New: {}", 
+                            change.description, change.previous_value, change.new_value),
+                        90, // Alta confianza para cambios críticos
+                    );
+                    let thought_clone = thought.clone();
+                    new_thoughts.push(thought);
+                    self.add_thought(thought_clone);
+                }
+            }
+
+            // Actualizar nivel de autoconciencia basado en estado del hardware
+            if is_critical {
+                self.update_self_awareness(80); // Aumentar conciencia en estado crítico
+            }
+        }
+
+        new_thoughts
+    }
+
+    /// Obtener el estado actual del hardware (integración Fase 1)
+    pub fn get_hardware_state(&self) -> Option<&HardwareState> {
+        self.hardware_awareness.as_ref().map(|hw| hw.current_state())
     }
 
     /// Agregar pensamiento metacognitivo
@@ -281,6 +328,15 @@ impl MetacognitionSystem {
 
         reflection.push_str(&format!("Overall Self-Evaluation: {:.2}\n", self.self_evaluation));
         reflection.push_str(&format!("Self-Awareness Level: {}\n\n", self.self_awareness_level));
+
+        // Integración Fase 1: Incluir estado del hardware en la reflexión
+        if let Some(hw_state) = self.get_hardware_state() {
+            reflection.push_str("Hardware Status:\n");
+            reflection.push_str(&format!("  CPU Temperature: {}°C\n", hw_state.cpu_temperature));
+            reflection.push_str(&format!("  GPU Temperature: {}°C\n", hw_state.gpu_temperature));
+            reflection.push_str(&format!("  Throttling: {}\n", if hw_state.throttling_active { "Active" } else { "Inactive" }));
+            reflection.push_str(&format!("  Overall Health: {}%\n\n", hw_state.overall_health));
+        }
 
         reflection.push_str("Key Insights:\n");
         

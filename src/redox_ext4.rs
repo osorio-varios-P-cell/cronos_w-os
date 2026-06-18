@@ -165,6 +165,7 @@ impl Ext4DirectoryEntry {
 }
 
 /// Filesystem ext4 de Redox adaptado
+#[derive(Debug, Clone)]
 pub struct RedoxExt4Filesystem {
     pub superblock: Ext4Superblock,
     pub block_groups: Vec<Ext4BlockGroup>,

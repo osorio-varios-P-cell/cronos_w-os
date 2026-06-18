@@ -51,7 +51,7 @@ if (Test-Path $LimineBios) {
 }
 
 # Copy Limine files for UEFI
-$LimineUefi = "$LimineDir\limine-uefi-cd.bin"
+$LimineUefi = "$LimineDir\BOOTX64.EFI"
 if (Test-Path $LimineUefi) {
     Copy-Item $LimineUefi "$EfiDir\BOOTX64.EFI"
 }

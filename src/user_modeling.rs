@@ -182,6 +182,7 @@ impl UserProfile {
 }
 
 /// Modelo profundo del usuario
+#[derive(Debug, Clone)]
 pub struct DeepUserModel {
     /// Perfil del usuario
     pub profile: UserProfile,

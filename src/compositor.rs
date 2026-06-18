@@ -382,35 +382,52 @@ impl Compositor {
         windows.into_iter().map(|(id, _)| *id).collect()
     }
 
-    /// Render the compositor with Double-Buffer Shadowing protection (v3.3)
+    /// Render the compositor — single lock acquisition
     pub fn render(&mut self) {
         if let Some(ref gpu_cap) = self.gpu_capability {
-            // 1. Shadow Buffer Check: Detectamos si hay corrupción antes de swapear
-            // En un sistema real, aquí verificaríamos checksums del backbuffer
-
-            // 2. Clear screen (Backbuffer)
             invoke_capability_mut(gpu_cap, |gpu| {
-                let _ = gpu.execute_command(&GpuContext(0), 
-                    GpuCommand::Clear { r: 20, g: 20, b: 30, a: 255 });
-            });
+                let _ = gpu.execute_command(&GpuContext(0),
+                    GpuCommand::Clear { r: 20, g: 18, b: 30, a: 255 });
 
-            // 3. Renderizado Gestalt: Dibujar ventanas estables
-            let windows_in_order = {
-                let mut windows: Vec<_> = self.windows.iter().collect();
-                windows.sort_by(|a, b| a.1.z_order.cmp(&b.1.z_order));
-                windows
-            };
-
-            for (_window_id, window) in windows_in_order {
-                if window.visible && window.state == WindowState::Normal {
-                    // Si la ventana es de una VM y detectamos inestabilidad, usamos la "Shadow Copy"
-                    self.render_window(gpu_cap, window);
+                // Desktop icons at left (only if no Popup panel covers them)
+                let icons = [0xFF3B82F6, 0xFF10B981, 0xFFF59E0B];
+                for (i, &c) in icons.iter().enumerate() {
+                    let iy = 24u32 + i as u32 * 64;
+                    let _ = gpu.execute_command(&GpuContext(0),
+                        GpuCommand::DrawRect { x: 24, y: iy, width: 48, height: 48, color: c });
                 }
-            }
 
-            // 4. Atomic Swap: Solo si el render es íntegro
-            invoke_capability_mut(gpu_cap, |gpu| {
-                let _ = gpu.swap_buffers();
+                // Render windows in z-order
+                let mut wl: Vec<_> = self.windows.iter().collect();
+                wl.sort_by(|a, b| a.1.z_order.cmp(&b.1.z_order));
+                for (_id, w) in wl {
+                    if !w.visible || w.state != WindowState::Normal { continue; }
+                    let r = w.rect;
+
+                    match w.window_type {
+                        WindowType::Popup => {
+                            // Popup: flat bar, no title, no shadow, no border
+                            let _ = gpu.execute_command(&GpuContext(0),
+                                GpuCommand::DrawRect { x: r.x as u32, y: r.y as u32, width: r.width, height: r.height, color: w.background_color });
+                        },
+                        _ => {
+                            // Normal window: shadow + body + title bar + border + text
+                            let tc = if w.focused { 0xFF1E40AF } else { 0xFF4B5563 };
+                            if w.has_shadow {
+                                let _ = gpu.execute_command(&GpuContext(0),
+                                    GpuCommand::DrawRect { x: (r.x + 6) as u32, y: (r.y + 6) as u32, width: r.width, height: r.height, color: 0x66000000 });
+                            }
+                            let _ = gpu.execute_command(&GpuContext(0),
+                                GpuCommand::DrawRect { x: r.x as u32, y: r.y as u32, width: r.width, height: r.height, color: w.background_color });
+                            let _ = gpu.execute_command(&GpuContext(0),
+                                GpuCommand::DrawRect { x: r.x as u32, y: r.y as u32, width: r.width, height: 28, color: tc });
+                            let _ = gpu.execute_command(&GpuContext(0),
+                                GpuCommand::DrawRect { x: r.x as u32, y: (r.y + 28i32) as u32, width: r.width, height: 1, color: 0xFF3B82F6 });
+                            let _ = gpu.execute_command(&GpuContext(0),
+                                GpuCommand::DrawText { x: (r.x + 6) as u32, y: (r.y + 4) as u32, text: w.title.clone() });
+                        }
+                    }
+                }
             });
         }
     }
@@ -472,71 +489,7 @@ impl Compositor {
     }
 
     /// Render a single window with Multi-Context Blending support
-    fn render_window(&self, gpu_cap: &Capability<RedoxGpuDriver>, window: &Window) {
-        invoke_capability_mut(gpu_cap, |gpu| {
-            let rect = window.rect;
-
-            // Determinar color base y estilo según el contexto (Soberano vs Invitado)
-            let (color, title_color) = match &window.window_type {
-                WindowType::ForeignOSApp { os_type } => {
-                    // Estética diferenciada para apps de otros SO (Modo Fluido)
-                    if os_type == "Windows" {
-                        (0xCC0078D4, 0xFF005A9E) // Azul Windows con transparencia
-                    } else if os_type == "Mac" {
-                        (0xCCAAAAAA, 0xFF777777) // Gris Apple con transparencia
-                    } else {
-                        (0xCC3B82F6, 0xFF1E40AF)
-                    }
-                },
-                _ => {
-                    if window.focused {
-                        (0xFF3B82F6, 0xFF1E40AF)
-                    } else {
-                        (0xFF6B7280, 0xFF4B5563)
-                    }
-                }
-            };
-
-            // 1. Efecto de Sombra (si está activo)
-            if window.has_shadow {
-                let shadow_offset = 6;
-                let _ = gpu.execute_command(&GpuContext(0),
-                    GpuCommand::DrawRect {
-                        x: (rect.x + shadow_offset) as u32,
-                        y: (rect.y + shadow_offset) as u32,
-                        width: rect.width,
-                        height: rect.height,
-                        color: 0x66000000, // Sombra más profunda para v2.3
-                    });
-            }
-
-            // FASE 16: Aplicar Crystal Flow Blur
-            if window.blur_radius > 0 {
-                self.apply_blur_effect(gpu_cap, &rect, window.blur_radius);
-            }
-
-            // 2. Renderizado de Fondo con Alpha Blending
-            let _ = gpu.execute_command(&GpuContext(0),
-                GpuCommand::DrawRect {
-                    x: rect.x as u32,
-                    y: rect.y as u32,
-                    width: rect.width,
-                    height: rect.height,
-                    color,
-                });
-
-            // 3. Barra de Título (Native Crystal Style)
-            let title_bar_height = 28;
-            let _ = gpu.execute_command(&GpuContext(0),
-                GpuCommand::DrawRect {
-                    x: rect.x as u32,
-                    y: rect.y as u32,
-                    width: rect.width,
-                    height: title_bar_height,
-                    color: title_color,
-                });
-        });
-    }
+    /// (inlined in render() for single-lock rendering)
 
     /// Handle input event
     pub fn handle_input(&mut self, x: i32, y: i32, button: bool) -> Option<WindowId> {

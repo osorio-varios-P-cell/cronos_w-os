@@ -191,6 +191,7 @@ impl VirtualMachine {
 }
 
 /// Hypervisor
+#[derive(Debug, Clone)]
 pub struct CronosHypervisor {
     pub virtual_machines: BTreeMap<u64, VirtualMachine>,
     pub next_vm_id: u64,

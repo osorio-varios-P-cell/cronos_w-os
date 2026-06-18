@@ -206,6 +206,7 @@ impl Default for KnowledgeBase {
 }
 
 /// Sistema RAG
+#[derive(Debug, Clone)]
 pub struct RagSystem {
     /// Base de conocimiento
     pub knowledge_base: KnowledgeBase,

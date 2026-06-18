@@ -201,6 +201,7 @@ impl VfsInode {
 }
 
 /// Sistema de archivos virtual (VFS)
+#[derive(Debug, Clone)]
 pub struct VirtualFileSystem {
     /// Inodos en el sistema
     pub inodes: BTreeMap<u64, VfsInode>,

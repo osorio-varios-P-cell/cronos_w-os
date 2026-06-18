@@ -10,6 +10,7 @@ pub enum MediaFormat {
     Docx, Pdf, Mp3, Wav, Mp4, Mkv, Stl
 }
 
+#[derive(Debug, Clone)]
 pub struct MediaEngine;
 
 impl MediaEngine {

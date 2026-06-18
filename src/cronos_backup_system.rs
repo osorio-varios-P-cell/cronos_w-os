@@ -118,6 +118,7 @@ impl RestorePoint {
 }
 
 /// Sistema de backup
+#[derive(Debug, Clone)]
 pub struct CronosBackupSystem {
     pub config: BackupConfig,
     pub backups: BTreeMap<u64, BackupInfo>,

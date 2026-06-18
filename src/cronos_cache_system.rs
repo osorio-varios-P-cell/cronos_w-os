@@ -135,6 +135,7 @@ impl Default for CacheConfig {
 }
 
 /// Caché
+#[derive(Debug, Clone)]
 pub struct CronosCache {
     pub config: CacheConfig,
     pub entries: BTreeMap<String, CacheEntry>,
@@ -308,6 +309,7 @@ impl Default for CronosCache {
 }
 
 /// Sistema de caché multi-nivel
+#[derive(Debug, Clone)]
 pub struct CronosCacheSystem {
     pub caches: BTreeMap<CacheLevel, CronosCache>,
     pub graph_kernel: Option<Cell<GraphKernel>>,

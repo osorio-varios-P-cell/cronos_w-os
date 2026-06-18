@@ -133,6 +133,7 @@ pub enum CosmicAction {
 }
 
 /// COSMIC UI layer
+#[derive(Debug, Clone)]
 pub struct CosmicUi {
     /// Compositor reference
     compositor: Capability<Compositor>,

@@ -289,6 +289,7 @@ impl BfsVolume {
 }
 
 /// Gestor de BFS
+#[derive(Debug, Clone)]
 pub struct BfsManager {
     /// Volúmenes BFS registrados (keyed by volume_id)
     pub volumes: BTreeMap<u64, BfsVolume>,

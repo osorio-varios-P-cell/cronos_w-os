@@ -109,6 +109,7 @@ impl LearningPattern {
 }
 
 /// Ciclo de aprendizaje
+#[derive(Debug, Clone)]
 pub struct LearningLoop {
     /// Eventos de aprendizaje
     pub events: Vec<LearningEvent>,

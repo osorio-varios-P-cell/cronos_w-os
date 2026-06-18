@@ -14,9 +14,11 @@ use crate::hal::{
     InputDevice, InputType, InputEvent,
     DeviceCapability,
 };
-use crate::capability::{Capability, Cell, CapabilityRights};
+use crate::capability::{Capability, Cell, CapabilityRights, CapabilityId, invoke_capability, invoke_capability_mut};
+use crate::graph_kernel::{GraphKernel, NodeType, HardwareType, NodeId};
 use alloc::vec::Vec;
 use alloc::string::String;
+use alloc::format;
 
 /// GPU Driver (Redox port)
 pub struct RedoxGpuDriver {
@@ -28,6 +30,9 @@ pub struct RedoxGpuDriver {
     height: u32,
     initialized: bool,
     next_context_id: u64,
+    /// FASE 2: Graph kernel integration
+    graph_kernel: Option<Cell<GraphKernel>>,
+    graph_node_id: Option<NodeId>,
 }
 
 impl RedoxGpuDriver {
@@ -41,6 +46,8 @@ impl RedoxGpuDriver {
             height: 480,
             initialized: false,
             next_context_id: 1,
+            graph_kernel: None,
+            graph_node_id: None,
         }
     }
 
@@ -49,6 +56,32 @@ impl RedoxGpuDriver {
         self.width = width;
         self.height = height;
         self
+    }
+
+    /// FASE 2: Set graph kernel reference
+    pub fn set_graph_kernel(&mut self, graph_kernel: GraphKernel) {
+        self.graph_kernel = Some(Cell::new(graph_kernel));
+    }
+
+    /// FASE 2: Register driver in graph kernel
+    pub fn register_in_graph(&mut self) -> Result<NodeId, String> {
+        if let Some(ref graph_kernel) = self.graph_kernel {
+            let node_type = NodeType::HardwareDevice(HardwareType::Gpu);
+            let node_name = format!("redox_gpu_{:04x}_{:04x}", self.vendor_id, self.device_id);
+            
+            let node_id = invoke_capability_mut(&graph_kernel.capability(), |gk| {
+                gk.create_node(node_type, node_name)
+            });
+            
+            if let Some(id) = node_id {
+                self.graph_node_id = Some(id);
+                Ok(id)
+            } else {
+                Err(String::from("Failed to create node in graph"))
+            }
+        } else {
+            Err(String::from("Graph kernel not set"))
+        }
     }
 }
 
@@ -150,11 +183,132 @@ impl GpuDevice for RedoxGpuDriver {
                     }
                 }
             }
+            GpuCommand::DrawText { x, y, text } => {
+                unsafe {
+                    let fb = self.framebuffer as *mut u32;
+                    let mut cx = x;
+                    for ch in text.bytes() {
+                        if !(0x20..=0x7E).contains(&ch) { cx += 8; continue; }
+                        let glyph = FONT8x8[(ch - 0x20) as usize];
+                        for row in 0..8 {
+                            let bits = glyph[row];
+                            for col in 0..8 {
+                                if (bits >> (7 - col)) & 1 != 0 {
+                                    let px = cx + col;
+                                    let py = y + row as u32;
+                                    if px < self.width && py < self.height {
+                                        *fb.add((py * self.width + px) as usize) = 0xFFFFFFFF;
+                                    }
+                                }
+                            }
+                        }
+                        cx += 8;
+                    }
+                }
+            }
             _ => {}
         }
         Ok(())
     }
 }
+
+static FONT8x8: [[u8; 8]; 95] = [
+    [0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00], //  
+    [0x18,0x18,0x18,0x18,0x18,0x00,0x18,0x00], // !
+    [0x6C,0x6C,0x6C,0x00,0x00,0x00,0x00,0x00], // "
+    [0x6C,0x6C,0xFE,0x6C,0xFE,0x6C,0x6C,0x00], // #
+    [0x18,0x3E,0x60,0x3C,0x06,0x7C,0x18,0x00], // $
+    [0x00,0xC6,0xCC,0x18,0x30,0x66,0xC6,0x00], // %
+    [0x38,0x6C,0x38,0x76,0xDC,0xCC,0x76,0x00], // &
+    [0x18,0x18,0x18,0x00,0x00,0x00,0x00,0x00], // '
+    [0x0C,0x18,0x30,0x30,0x30,0x18,0x0C,0x00], // (
+    [0x30,0x18,0x0C,0x0C,0x0C,0x18,0x30,0x00], // )
+    [0x00,0x66,0x3C,0xFF,0x3C,0x66,0x00,0x00], // *
+    [0x00,0x18,0x18,0x7E,0x18,0x18,0x00,0x00], // +
+    [0x00,0x00,0x00,0x00,0x00,0x18,0x18,0x30], // ,
+    [0x00,0x00,0x00,0x7E,0x00,0x00,0x00,0x00], // -
+    [0x00,0x00,0x00,0x00,0x00,0x18,0x18,0x00], // .
+    [0x06,0x0C,0x18,0x30,0x60,0xC0,0x80,0x00], // /
+    [0x3C,0x66,0x6E,0x7E,0x76,0x66,0x3C,0x00], // 0
+    [0x18,0x38,0x18,0x18,0x18,0x18,0x7E,0x00], // 1
+    [0x3C,0x66,0x06,0x0C,0x18,0x30,0x7E,0x00], // 2
+    [0x3C,0x66,0x06,0x1C,0x06,0x66,0x3C,0x00], // 3
+    [0x0C,0x1C,0x3C,0x6C,0xFE,0x0C,0x0C,0x00], // 4
+    [0x7E,0x60,0x7C,0x06,0x06,0x66,0x3C,0x00], // 5
+    [0x3C,0x66,0x60,0x7C,0x66,0x66,0x3C,0x00], // 6
+    [0x7E,0x06,0x0C,0x18,0x30,0x30,0x30,0x00], // 7
+    [0x3C,0x66,0x66,0x3C,0x66,0x66,0x3C,0x00], // 8
+    [0x3C,0x66,0x66,0x3E,0x06,0x66,0x3C,0x00], // 9
+    [0x00,0x18,0x18,0x00,0x00,0x18,0x18,0x00], // :
+    [0x00,0x18,0x18,0x00,0x00,0x18,0x18,0x30], // ;
+    [0x0C,0x18,0x30,0x60,0x30,0x18,0x0C,0x00], // <
+    [0x00,0x00,0x7E,0x00,0x00,0x7E,0x00,0x00], // =
+    [0x30,0x18,0x0C,0x06,0x0C,0x18,0x30,0x00], // >
+    [0x3C,0x66,0x06,0x0C,0x18,0x00,0x18,0x00], // ?
+    [0x3C,0x66,0x6E,0x6E,0x60,0x66,0x3C,0x00], // @
+    [0x3C,0x66,0x66,0x7E,0x66,0x66,0x66,0x00], // A
+    [0x7C,0x66,0x66,0x7C,0x66,0x66,0x7C,0x00], // B
+    [0x3C,0x66,0x60,0x60,0x60,0x66,0x3C,0x00], // C
+    [0x78,0x6C,0x66,0x66,0x66,0x6C,0x78,0x00], // D
+    [0x7E,0x60,0x60,0x7C,0x60,0x60,0x7E,0x00], // E
+    [0x7E,0x60,0x60,0x7C,0x60,0x60,0x60,0x00], // F
+    [0x3C,0x66,0x60,0x6E,0x66,0x66,0x3C,0x00], // G
+    [0x66,0x66,0x66,0x7E,0x66,0x66,0x66,0x00], // H
+    [0x7E,0x18,0x18,0x18,0x18,0x18,0x7E,0x00], // I
+    [0x3E,0x0C,0x0C,0x0C,0x0C,0x6C,0x38,0x00], // J
+    [0x66,0x6C,0x78,0x70,0x78,0x6C,0x66,0x00], // K
+    [0x60,0x60,0x60,0x60,0x60,0x60,0x7E,0x00], // L
+    [0xC6,0xEE,0xFE,0xD6,0xC6,0xC6,0xC6,0x00], // M
+    [0x66,0x76,0x7E,0x7E,0x6E,0x66,0x66,0x00], // N
+    [0x3C,0x66,0x66,0x66,0x66,0x66,0x3C,0x00], // O
+    [0x7C,0x66,0x66,0x7C,0x60,0x60,0x60,0x00], // P
+    [0x3C,0x66,0x66,0x66,0x66,0x3C,0x0E,0x00], // Q
+    [0x7C,0x66,0x66,0x7C,0x78,0x6C,0x66,0x00], // R
+    [0x3C,0x66,0x60,0x3C,0x06,0x66,0x3C,0x00], // S
+    [0x7E,0x18,0x18,0x18,0x18,0x18,0x18,0x00], // T
+    [0x66,0x66,0x66,0x66,0x66,0x66,0x3C,0x00], // U
+    [0x66,0x66,0x66,0x66,0x66,0x3C,0x18,0x00], // V
+    [0xC6,0xC6,0xC6,0xD6,0xFE,0xEE,0xC6,0x00], // W
+    [0xC6,0xEE,0x7C,0x38,0x7C,0xEE,0xC6,0x00], // X
+    [0x66,0x66,0x66,0x3C,0x18,0x18,0x18,0x00], // Y
+    [0x7E,0x06,0x0C,0x18,0x30,0x60,0x7E,0x00], // Z
+    [0x3C,0x30,0x30,0x30,0x30,0x30,0x3C,0x00], // [
+    [0xC0,0x60,0x30,0x18,0x0C,0x06,0x02,0x00], // backslash
+    [0x3C,0x0C,0x0C,0x0C,0x0C,0x0C,0x3C,0x00], // ]
+    [0x10,0x38,0x6C,0xC6,0x00,0x00,0x00,0x00], // ^
+    [0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xFF], // _
+    [0x18,0x18,0x0C,0x00,0x00,0x00,0x00,0x00], // `
+    [0x00,0x00,0x3C,0x06,0x3E,0x66,0x3E,0x00], // a
+    [0x60,0x60,0x7C,0x66,0x66,0x66,0x7C,0x00], // b
+    [0x00,0x00,0x3C,0x66,0x60,0x66,0x3C,0x00], // c
+    [0x06,0x06,0x3E,0x66,0x66,0x66,0x3E,0x00], // d
+    [0x00,0x00,0x3C,0x66,0x7E,0x60,0x3C,0x00], // e
+    [0x1C,0x30,0x7C,0x30,0x30,0x30,0x30,0x00], // f
+    [0x00,0x00,0x3E,0x66,0x66,0x3E,0x06,0x3C], // g
+    [0x60,0x60,0x7C,0x66,0x66,0x66,0x66,0x00], // h
+    [0x18,0x00,0x38,0x18,0x18,0x18,0x3C,0x00], // i
+    [0x0C,0x00,0x1C,0x0C,0x0C,0x0C,0x6C,0x38], // j
+    [0x60,0x60,0x66,0x6C,0x78,0x6C,0x66,0x00], // k
+    [0x38,0x18,0x18,0x18,0x18,0x18,0x3C,0x00], // l
+    [0x00,0x00,0xEC,0xFE,0xD6,0xC6,0xC6,0x00], // m
+    [0x00,0x00,0x7C,0x66,0x66,0x66,0x66,0x00], // n
+    [0x00,0x00,0x3C,0x66,0x66,0x66,0x3C,0x00], // o
+    [0x00,0x00,0x7C,0x66,0x66,0x7C,0x60,0x60], // p
+    [0x00,0x00,0x3E,0x66,0x66,0x3E,0x06,0x06], // q
+    [0x00,0x00,0x7C,0x66,0x60,0x60,0x60,0x00], // r
+    [0x00,0x00,0x3E,0x60,0x3C,0x06,0x7C,0x00], // s
+    [0x30,0x30,0x7C,0x30,0x30,0x30,0x1C,0x00], // t
+    [0x00,0x00,0x66,0x66,0x66,0x66,0x3E,0x00], // u
+    [0x00,0x00,0x66,0x66,0x66,0x3C,0x18,0x00], // v
+    [0x00,0x00,0xC6,0xC6,0xD6,0xFE,0x6C,0x00], // w
+    [0x00,0x00,0x66,0x3C,0x18,0x3C,0x66,0x00], // x
+    [0x00,0x00,0x66,0x66,0x66,0x3E,0x06,0x3C], // y
+    [0x00,0x00,0x7E,0x0C,0x18,0x30,0x7E,0x00], // z
+    [0x0E,0x18,0x18,0x70,0x18,0x18,0x0E,0x00], // {
+    [0x18,0x18,0x18,0x00,0x18,0x18,0x18,0x00], // |
+    [0x70,0x18,0x18,0x0E,0x18,0x18,0x70,0x00], // }
+    [0x76,0xDC,0x00,0x00,0x00,0x00,0x00,0x00], // ~
+];
 
 /// NVMe Driver (Redox port)
 pub struct RedoxNvmeDriver {
@@ -164,6 +318,9 @@ pub struct RedoxNvmeDriver {
     base_address: usize,
     initialized: bool,
     namespace_count: u32,
+    /// FASE 2: Graph kernel integration
+    graph_kernel: Option<Cell<GraphKernel>>,
+    graph_node_id: Option<NodeId>,
 }
 
 impl RedoxNvmeDriver {
@@ -175,6 +332,34 @@ impl RedoxNvmeDriver {
             base_address,
             initialized: false,
             namespace_count: 1,
+            graph_kernel: None,
+            graph_node_id: None,
+        }
+    }
+
+    /// FASE 2: Set graph kernel reference
+    pub fn set_graph_kernel(&mut self, graph_kernel: GraphKernel) {
+        self.graph_kernel = Some(Cell::new(graph_kernel));
+    }
+
+    /// FASE 2: Register driver in graph kernel
+    pub fn register_in_graph(&mut self) -> Result<NodeId, String> {
+        if let Some(ref graph_kernel) = self.graph_kernel {
+            let node_type = NodeType::HardwareDevice(HardwareType::Storage);
+            let node_name = format!("redox_nvme_{:04x}_{:04x}", self.vendor_id, self.device_id);
+            
+            let node_id = invoke_capability_mut(&graph_kernel.capability(), |gk| {
+                gk.create_node(node_type, node_name)
+            });
+            
+            if let Some(id) = node_id {
+                self.graph_node_id = Some(id);
+                Ok(id)
+            } else {
+                Err(String::from("Failed to create node in graph"))
+            }
+        } else {
+            Err(String::from("Graph kernel not set"))
         }
     }
 }
@@ -251,6 +436,9 @@ pub struct RedoxXhciDriver {
     base_address: usize,
     initialized: bool,
     port_count: u32,
+    /// FASE 2: Graph kernel integration
+    graph_kernel: Option<Cell<GraphKernel>>,
+    graph_node_id: Option<NodeId>,
 }
 
 impl RedoxXhciDriver {
@@ -262,6 +450,34 @@ impl RedoxXhciDriver {
             base_address,
             initialized: false,
             port_count: 4,
+            graph_kernel: None,
+            graph_node_id: None,
+        }
+    }
+
+    /// FASE 2: Set graph kernel reference
+    pub fn set_graph_kernel(&mut self, graph_kernel: GraphKernel) {
+        self.graph_kernel = Some(Cell::new(graph_kernel));
+    }
+
+    /// FASE 2: Register driver in graph kernel
+    pub fn register_in_graph(&mut self) -> Result<NodeId, String> {
+        if let Some(ref graph_kernel) = self.graph_kernel {
+            let node_type = NodeType::HardwareDevice(HardwareType::Xhci);
+            let node_name = format!("redox_xhci_{:04x}_{:04x}", self.vendor_id, self.device_id);
+            
+            let node_id = invoke_capability_mut(&graph_kernel.capability(), |gk| {
+                gk.create_node(node_type, node_name)
+            });
+            
+            if let Some(id) = node_id {
+                self.graph_node_id = Some(id);
+                Ok(id)
+            } else {
+                Err(String::from("Failed to create node in graph"))
+            }
+        } else {
+            Err(String::from("Graph kernel not set"))
         }
     }
 }
@@ -345,6 +561,9 @@ pub struct RedoxWifiDriver {
     mac_address: [u8; 6],
     initialized: bool,
     connection_status: ConnectionStatus,
+    /// FASE 2: Graph kernel integration
+    graph_kernel: Option<Cell<GraphKernel>>,
+    graph_node_id: Option<NodeId>,
 }
 
 impl RedoxWifiDriver {
@@ -356,6 +575,34 @@ impl RedoxWifiDriver {
             mac_address,
             initialized: false,
             connection_status: ConnectionStatus::Disconnected,
+            graph_kernel: None,
+            graph_node_id: None,
+        }
+    }
+
+    /// FASE 2: Set graph kernel reference
+    pub fn set_graph_kernel(&mut self, graph_kernel: GraphKernel) {
+        self.graph_kernel = Some(Cell::new(graph_kernel));
+    }
+
+    /// FASE 2: Register driver in graph kernel
+    pub fn register_in_graph(&mut self) -> Result<NodeId, String> {
+        if let Some(ref graph_kernel) = self.graph_kernel {
+            let node_type = NodeType::HardwareDevice(HardwareType::Network);
+            let node_name = format!("redox_wifi_{:04x}_{:04x}", self.vendor_id, self.device_id);
+            
+            let node_id = invoke_capability_mut(&graph_kernel.capability(), |gk| {
+                gk.create_node(node_type, node_name)
+            });
+            
+            if let Some(id) = node_id {
+                self.graph_node_id = Some(id);
+                Ok(id)
+            } else {
+                Err(String::from("Failed to create node in graph"))
+            }
+        } else {
+            Err(String::from("Graph kernel not set"))
         }
     }
 }
@@ -439,6 +686,9 @@ pub struct RedoxAudioDriver {
     channel_count: u32,
     sample_rate: u32,
     volume: f32,
+    /// FASE 2: Graph kernel integration
+    graph_kernel: Option<Cell<GraphKernel>>,
+    graph_node_id: Option<NodeId>,
 }
 
 impl RedoxAudioDriver {
@@ -452,6 +702,34 @@ impl RedoxAudioDriver {
             channel_count: 2,
             sample_rate: 44100,
             volume: 1.0,
+            graph_kernel: None,
+            graph_node_id: None,
+        }
+    }
+
+    /// FASE 2: Set graph kernel reference
+    pub fn set_graph_kernel(&mut self, graph_kernel: GraphKernel) {
+        self.graph_kernel = Some(Cell::new(graph_kernel));
+    }
+
+    /// FASE 2: Register driver in graph kernel
+    pub fn register_in_graph(&mut self) -> Result<NodeId, String> {
+        if let Some(ref graph_kernel) = self.graph_kernel {
+            let node_type = NodeType::HardwareDevice(HardwareType::Audio);
+            let node_name = format!("redox_audio_{:04x}_{:04x}", self.vendor_id, self.device_id);
+            
+            let node_id = invoke_capability_mut(&graph_kernel.capability(), |gk| {
+                gk.create_node(node_type, node_name)
+            });
+            
+            if let Some(id) = node_id {
+                self.graph_node_id = Some(id);
+                Ok(id)
+            } else {
+                Err(String::from("Failed to create node in graph"))
+            }
+        } else {
+            Err(String::from("Graph kernel not set"))
         }
     }
 }
@@ -544,6 +822,9 @@ pub struct RedoxNetworkDriver {
     mtu: u32,
     link_status: LinkStatus,
     statistics: NetworkStatistics,
+    /// FASE 2: Graph kernel integration
+    graph_kernel: Option<Cell<GraphKernel>>,
+    graph_node_id: Option<NodeId>,
 }
 
 impl RedoxNetworkDriver {
@@ -558,6 +839,34 @@ impl RedoxNetworkDriver {
             mtu: 1500,
             link_status: LinkStatus::Up,
             statistics: NetworkStatistics::default(),
+            graph_kernel: None,
+            graph_node_id: None,
+        }
+    }
+
+    /// FASE 2: Set graph kernel reference
+    pub fn set_graph_kernel(&mut self, graph_kernel: GraphKernel) {
+        self.graph_kernel = Some(Cell::new(graph_kernel));
+    }
+
+    /// FASE 2: Register driver in graph kernel
+    pub fn register_in_graph(&mut self) -> Result<NodeId, String> {
+        if let Some(ref graph_kernel) = self.graph_kernel {
+            let node_type = NodeType::HardwareDevice(HardwareType::Network);
+            let node_name = format!("redox_network_{:04x}_{:04x}", self.vendor_id, self.device_id);
+            
+            let node_id = invoke_capability_mut(&graph_kernel.capability(), |gk| {
+                gk.create_node(node_type, node_name)
+            });
+            
+            if let Some(id) = node_id {
+                self.graph_node_id = Some(id);
+                Ok(id)
+            } else {
+                Err(String::from("Failed to create node in graph"))
+            }
+        } else {
+            Err(String::from("Graph kernel not set"))
         }
     }
 }

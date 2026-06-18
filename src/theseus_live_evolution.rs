@@ -104,6 +104,7 @@ impl SystemComponent {
 }
 
 /// Gestor de live evolution
+#[derive(Debug, Clone)]
 pub struct LiveEvolutionManager {
     pub components: BTreeMap<u64, SystemComponent>,
     pub next_component_id: u64,
