@@ -15,11 +15,16 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y qemu-system-x86 nasm mtools ovmf python3-pip
+          sudo apt-get install -y qemu-system-x86 nasm mtools ovmf python3-pip git curl
           pip3 install FATtools --break-system-packages
           rustup toolchain install nightly
           rustup default nightly
           rustup target add x86_64-unknown-none
+          # Descargar binarios de Limine para el arranque UEFI
+          mkdir -p limine-tools/limine-binary
+          git clone https://github.com/limine-bootloader/limine.git --branch=v5.x-binary --depth=1 limine-tools-repo
+          cp limine-tools-repo/BOOTX64.EFI limine-tools/limine-binary/
+          cp limine-tools-repo/limine-bios.sys limine-tools/limine-binary/ || true
 
       - name: Build Kernel
         run: make kernel

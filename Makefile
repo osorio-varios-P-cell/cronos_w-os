@@ -11,7 +11,7 @@ BOOTLOADER = bootloader/limine_boot.bin
 UNIVERSAL_IMAGE = cronos_w-os.img
 QEMU = qemu-system-x86_64
 RUSTFLAGS = -C target-feature=+sse3,+sse4.1,+sse4.2,+popcnt
-RUSTUP_TOOLCHAIN = nightly-2023-12-01
+RUSTUP_TOOLCHAIN = nightly
 
 # Opciones de compilación
 BUILD_FLAGS = --target $(TARGET)
@@ -75,13 +75,14 @@ release:
 	@dd if=$(KERNEL_BIN) of=$(DISK_IMAGE) bs=512 seek=1 conv=notrunc status=progress
 	@echo "✅ Release compilado"
 
-# Ejecutar en QEMU con configuración avanzada (Q35, NVMe, Telemetría)
+# Ejecutar en QEMU con configuración avanzada (Q35, NVMe, UEFI)
 qemu: image
-	@echo "🖥️ Iniciando CRONOS W-OS - Exokernel con Grafos en QEMU..."
+	@echo "🖥️ Iniciando CRONOS W-OS - Exokernel con Grafos en QEMU (UEFI)..."
 	@echo "🌐 Arquitectura: Exokernel + Grafos + IA Colmena + CronosOS"
 	$(QEMU) \
 		-M q35 \
 		-cpu max \
+		-bios /usr/share/ovmf/OVMF.fd \
 		-m 2G \
 		-smp 4 \
 		-drive format=raw,file=$(UNIVERSAL_IMAGE),if=none,id=nvm \
@@ -94,10 +95,11 @@ qemu: image
 
 # QEMU con debug avanzado (Logs de interrupciones y fallos)
 qemu-debug: image
-	@echo "🐛 Iniciando CRONOS W-OS en QEMU con debug avanzado..."
+	@echo "🐛 Iniciando CRONOS W-OS en QEMU con debug avanzado (UEFI)..."
 	$(QEMU) \
 		-M q35 \
 		-cpu max \
+		-bios /usr/share/ovmf/OVMF.fd \
 		-m 2G \
 		-smp 4 \
 		-drive format=raw,file=$(UNIVERSAL_IMAGE),if=none,id=nvm \

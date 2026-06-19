@@ -158,10 +158,8 @@ impl BootInfo {
             
             // El Mutex se libera automáticamente aquí al salir del scope
             
-            // Re-habilitar interrupciones después de liberar el Mutex
-            unsafe {
-                core::arch::asm!("sti");
-            }
+            // NO habilitar interrupciones aquí. Se hará en kernel_main_impl
+            // cuando el sistema esté totalmente listo.
         }
         
         // Centinela después del bucle
