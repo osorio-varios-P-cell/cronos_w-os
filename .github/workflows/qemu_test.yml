@@ -16,15 +16,23 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y qemu-system-x86 nasm mtools ovmf python3-pip git curl
-          pip3 install FATtools --break-system-packages
+          python3 -m pip install FATtools --break-system-packages
           rustup toolchain install nightly
           rustup default nightly
           rustup target add x86_64-unknown-none
-          # Descargar binarios de Limine para el arranque UEFI
+          # Descargar binarios de Limine para el arranque UEFI (Asegurar que la rama es correcta)
           mkdir -p limine-tools/limine-binary
           git clone https://github.com/limine-bootloader/limine.git --branch=v5.x-binary --depth=1 limine-tools-repo
           cp limine-tools-repo/BOOTX64.EFI limine-tools/limine-binary/
           cp limine-tools-repo/limine-bios.sys limine-tools/limine-binary/ || true
+          # Localizar OVMF
+          find /usr/share -name "OVMF.fd" || echo "OVMF not found in standard path"
+
+      - name: Verify Environment
+        run: |
+          ls -R limine-tools/
+          python3 -c "import FATtools; print('FATtools OK')"
+          which qemu-system-x86_64
 
       - name: Build Kernel
         run: make kernel
@@ -34,27 +42,45 @@ jobs:
 
       - name: Run QEMU Headless and Capture Logs
         run: |
-          # Run QEMU with UEFI support and capture serial output
-          timeout 60s qemu-system-x86_64 \
-            -bios /usr/share/ovmf/OVMF.fd \
+          # Buscar la ruta de OVMF dinámicamente
+          OVMF_PATH=$(find /usr/share -name "OVMF.fd" | head -n 1)
+          if [ -z "$OVMF_PATH" ]; then OVMF_PATH=$(find /usr/share -name "OVMF_CODE.fd" | head -n 1); fi
+          echo "Using OVMF at: $OVMF_PATH"
+
+          # Ejecutar QEMU con TCG (software acceleration) para runners de CI
+          # Usamos -device isa-debug-exit para control de salida
+          timeout 120s qemu-system-x86_64 \
+            -accel tcg \
+            -bios "$OVMF_PATH" \
             -drive format=raw,file=cronos_w-os.img \
             -m 2G \
             -display none \
-            -serial file:qemu_serial_report.log \
-            -no-reboot || true
+            -serial stdio \
+            -no-reboot > qemu_serial_report.log 2>&1 || true
 
           echo "--- QEMU SERIAL REPORT ---"
           cat qemu_serial_report.log
 
-          # Check for PANIC in logs
+          # Validación de arranque exitoso
+          if ! grep -q "HEARTBEAT" qemu_serial_report.log; then
+            echo "❌ Error: El Kernel ni siquiera inició (Heartbeat no detectado)"
+            exit 1
+          fi
+
           if grep -q "PANIC" qemu_serial_report.log; then
-            echo "❌ Critical Error: Kernel Panic detected!"
+            echo "❌ Critical Error: Kernel Panic detectado!"
             exit 1
           fi
 
           if grep -q "FALLIDO" qemu_serial_report.log; then
-            echo "⚠️ Warning: System init reported failure."
+            echo "⚠️ Warning: La inicialización del sistema reportó fallos."
             exit 1
+          fi
+
+          if grep -q "SOBERANO" qemu_serial_report.log; then
+            echo "✅ Éxito: CRONOS OS alcanzó el estado soberano."
+          else
+            echo "⚠️ Advertencia: El sistema inició pero no confirmó estado operativo completo."
           fi
 
       - name: Upload Logs

@@ -242,11 +242,11 @@ pub fn kernel_main_impl(boot_info: &BootInfo) -> ! {
         core::arch::asm!("out dx, al", in("dx") 0xE9u16, in("al") b'\n');
     }
     
-    // LOG 1: Entrada
-    crate::serial_println!("Kernel Main: Entrada confirmada.");
+    // LOG 1: Entrada (Sovereign Heartbeat)
+    crate::serial_println!("[HEARTBEAT] CRONOS W-OS: Iniciando secuencia de entrada soberana.");
     
     // LOG 2: Inicio de inicializacion del kernel
-    crate::serial_println!("Iniciando inicializacion del kernel...");
+    crate::serial_println!("[INIT] Comenzando inicialización del núcleo...");
     
     unsafe { core::arch::asm!("out dx, al", in("dx") 0xE9u16, in("al") b'B'); }
     
@@ -487,6 +487,14 @@ pub fn kernel_main_impl(boot_info: &BootInfo) -> ! {
 
     serial_println!("Estado de inicio del sistema: {}", if status { "OK" } else { "FALLIDO" });
     serial_println!("Dispositivos PCI: {}", pci_devices.len());
+
+    unsafe {
+        if let Some(ref mut hive) = HIVE_AI_INSTANCE {
+            if let Ok(report) = hive.run_global_validation() {
+                crate::serial_println!("{}", report);
+            }
+        }
+    }
 
     // Habilitar interrupciones ahora que el sistema está listo
     crate::serial_println!("kernel_main: habilitando interrupciones (Sovereign Entry)");
