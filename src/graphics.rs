@@ -403,6 +403,75 @@ impl GraphicsContext {
         self.fill_circle(x2 - radius, y2 - radius, radius);
     }
 
+    /// Implementación de desenfoque Gaussiano (Glassmorphism)
+    pub fn apply_gaussian_blur(&mut self, rect: Rect, radius: u32) {
+        if radius == 0 { return; }
+
+        let width = self.back_buffer.width();
+        let height = self.back_buffer.height();
+        let bytes_per_pixel = (self.back_buffer.bpp() as u32) / 8;
+
+        // Simulación de desenfoque mediante promedio de área (box blur simplificado)
+        for y in rect.y..(rect.y + rect.height as i32) {
+            for x in rect.x..(rect.x + rect.width as i32) {
+                if x < 0 || x >= width as i32 || y < 0 || y >= height as i32 { continue; }
+
+                let mut r_total: u32 = 0;
+                let mut g_total: u32 = 0;
+                let mut b_total: u32 = 0;
+                let mut count: u32 = 0;
+
+                let r_i = radius as i32;
+                for dy in -r_i..=r_i {
+                    for dx in -r_i..=r_i {
+                        let nx = x + dx;
+                        let ny = y + dy;
+
+                        if nx >= 0 && nx < width as i32 && ny >= 0 && ny < height as i32 {
+                            let offset = (ny as u32 * self.back_buffer.mode.pitch + nx as u32 * bytes_per_pixel) as usize;
+                            b_total += self.back_buffer.buffer[offset] as u32;
+                            g_total += self.back_buffer.buffer[offset + 1] as u32;
+                            r_total += self.back_buffer.buffer[offset + 2] as u32;
+                            count += 1;
+                        }
+                    }
+                }
+
+                if count > 0 {
+                    let offset = (y as u32 * self.back_buffer.mode.pitch + x as u32 * bytes_per_pixel) as usize;
+                    self.back_buffer.buffer[offset] = (b_total / count) as u8;
+                    self.back_buffer.buffer[offset + 1] = (g_total / count) as u8;
+                    self.back_buffer.buffer[offset + 2] = (r_total / count) as u8;
+                }
+            }
+        }
+    }
+
+    /// Dibuja una sombra dinámica (Drop Shadow)
+    pub fn draw_shadow(&mut self, rect: Rect, intensity: u8) {
+        let shadow_rect = Rect::new(rect.x + 4, rect.y + 4, rect.width, rect.height);
+        let old_fill = self.fill_color;
+        self.fill_color = Color::new(0, 0, 0); // Sombra negra
+
+        // Dibujar sombra con transparencia simulada (mezcla con el fondo existente)
+        let width = self.back_buffer.width();
+        let height = self.back_buffer.height();
+        let bytes_per_pixel = (self.back_buffer.bpp() as u32) / 8;
+
+        for y in shadow_rect.y..(shadow_rect.y + shadow_rect.height as i32) {
+            for x in shadow_rect.x..(shadow_rect.x + shadow_rect.width as i32) {
+                if x < 0 || x >= width as i32 || y < 0 || y >= height as i32 { continue; }
+
+                let offset = (y as u32 * self.back_buffer.mode.pitch + x as u32 * bytes_per_pixel) as usize;
+                // Mezcla simple 50/50 con negro para simular sombra
+                self.back_buffer.buffer[offset] /= 2;
+                self.back_buffer.buffer[offset + 1] /= 2;
+                self.back_buffer.buffer[offset + 2] /= 2;
+            }
+        }
+        self.fill_color = old_fill;
+    }
+
     pub fn draw_circle(&mut self, cx: i32, cy: i32, radius: i32) {
         let mut x = radius;
         let mut y = 0;

@@ -211,6 +211,16 @@ pub struct OptimizationResponse {
     pub message: String,
 }
 
+/// FASE 38: Blueprint de Contexto (Perfiles de OS)
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ContextBlueprint {
+    Development,
+    Multimedia,
+    HighSecurity,
+    MinimalPower,
+    SovereignGaming,
+}
+
 /// Optimization action to execute
 #[derive(Debug, Clone)]
 pub enum OptimizationAction {
@@ -220,6 +230,7 @@ pub enum OptimizationAction {
     AdjustGpuPerformance { level: String },
     UpdateSecurityPolicy { policy: String, setting: String },
     RebalanceLayerLoad { from_layer: Layer, to_layer: Layer, amount: f32 },
+    ApplyContextBlueprint(ContextBlueprint),
 }
 
 /// Hive AI - Bridge capability between layers
@@ -255,6 +266,8 @@ pub struct HiveAi {
     pub openai: Option<CronosOpenAIIntegration>,
     /// LocalAI Integration (self-hosted models)
     pub localai: Option<CronosLocalAIIntegration>,
+    /// FASE 38: Contexto actual
+    pub active_blueprint: ContextBlueprint,
 }
 
 /// FASE 14: Hive Broker - User-space process for managing AI requests
@@ -956,6 +969,7 @@ impl HiveAi {
             multiversal: None,
             openai: None,
             localai: None,
+            active_blueprint: ContextBlueprint::Development,
         }
     }
 
@@ -1401,6 +1415,10 @@ impl HiveAi {
             OptimizationAction::RebalanceLayerLoad { from_layer: _, to_layer: _, amount: _ } => {
                 // TODO: Implement layer load rebalancing
             }
+            OptimizationAction::ApplyContextBlueprint(blueprint) => {
+                // FASE 38: Aplicación real delegada (Simulada en prototipo)
+                let _ = blueprint;
+            }
         }
     }
 
@@ -1668,6 +1686,25 @@ impl HiveAi {
     }
 
     /// FASE 2.5: Razonamiento desde Primeros Principios (Fable Style)
+    /// FASE 38: Aplicar un blueprint de contexto al sistema
+    pub fn apply_blueprint(&mut self, blueprint: ContextBlueprint) -> String {
+        self.active_blueprint = blueprint.clone();
+        let report = format!("🧠 Hive AI: Aplicando Blueprint de Contexto: {:?}\n", blueprint);
+
+        // El razonamiento de Hive AI ajusta métricas y comportamientos
+        match blueprint {
+            ContextBlueprint::HighSecurity => {
+                self.request_optimization(OptimizationType::SecurityPolicies);
+            }
+            ContextBlueprint::Multimedia => {
+                self.request_optimization(OptimizationType::GpuRendering);
+            }
+            _ => {}
+        }
+
+        report
+    }
+
     pub fn perform_fable_reasoning(&mut self, goal: &str) -> String {
         self.current_reasoning.clear();
 

@@ -144,6 +144,9 @@ pub struct GraphNode {
     pub metadata: BTreeMap<String, String>,
     pub capabilities: BTreeSet<CapabilityId>,
     pub created_at: u64,
+    /// FASE 36: Cuota de recursos (inspirado en Genode)
+    pub quota_max: u64,
+    pub quota_used: u64,
 }
 
 impl GraphNode {
@@ -155,6 +158,8 @@ impl GraphNode {
             metadata: BTreeMap::new(),
             capabilities: BTreeSet::new(),
             created_at: get_kernel_tick(), // BUG #9 corregido: usar KERNEL_TICK real
+            quota_max: 1000, // Valor por defecto
+            quota_used: 0,
         }
     }
 
@@ -245,9 +250,21 @@ impl ResourceGraph {
         let source = edge.source;
         let target = edge.target;
 
-        // Verificación de ciclo para tipos DAG (como Ownership)
+        // 1. Verificación de cuota (Genode Principle)
+        if let Some(source_node) = self.nodes.get_mut(&source) {
+            if source_node.quota_used >= source_node.quota_max {
+                return Err("Cuota de recursos agotada para el nodo origen");
+            }
+            source_node.quota_used += 1;
+        }
+
+        // 2. Verificación de ciclo para tipos DAG (como Ownership)
         if edge.edge_type.is_dag_constraint() {
             if self.has_path(target, source, self.max_search_depth) {
+                // Devolver cuota si falla
+                if let Some(source_node) = self.nodes.get_mut(&source) {
+                    source_node.quota_used -= 1;
+                }
                 return Err("Ciclo detectado en restricción DAG de recursos");
             }
         }

@@ -211,10 +211,50 @@ pub enum WallpaperType {
     AIGenerated(String),
 }
 
+/// Widget del Dashboard
+#[derive(Debug, Clone)]
+pub struct DashboardWidget {
+    pub id: u32,
+    pub title: String,
+    pub content: String,
+    pub widget_type: WidgetType,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WidgetType {
+    SystemStats,
+    Weather,
+    AInsights,
+    Calendar,
+    Network,
+}
+
+/// Dashboard inteligente inspirado en macOS/Windows 11
+pub struct SovereignDashboard {
+    pub visible: bool,
+    pub widgets: Vec<DashboardWidget>,
+    pub blur_radius: u32,
+}
+
+impl SovereignDashboard {
+    pub fn new() -> Self {
+        Self {
+            visible: false,
+            widgets: Vec::new(),
+            blur_radius: 20,
+        }
+    }
+
+    pub fn toggle(&mut self) {
+        self.visible = !self.visible;
+    }
+}
+
 /// Entorno de escritorio
 pub struct DesktopEnvironment {
     taskbar: Taskbar,
     start_menu: StartMenu,
+    pub dashboard: SovereignDashboard,
     screen_width: u32,
     screen_height: u32,
     /// FASE 16: Controles de hardware (Brillo, Volumen)
@@ -222,21 +262,26 @@ pub struct DesktopEnvironment {
     pub screen_brightness: u8,
     /// FASE 16: Gestión estética del fondo
     pub wallpaper: WallpaperType,
+    /// FASE 35: Tema dinámico
+    pub accent_color: u32,
 }
 
 impl DesktopEnvironment {
     pub fn new(screen_width: u32, screen_height: u32) -> Self {
         let taskbar = Taskbar::new(screen_width, screen_height);
         let start_menu = StartMenu::new();
+        let dashboard = SovereignDashboard::new();
         
         Self {
             taskbar,
             start_menu,
+            dashboard,
             screen_width,
             screen_height,
             system_volume: 75,
             screen_brightness: 80,
             wallpaper: WallpaperType::SolidColor(0xFF1E1E2E), // Gris Soberano por defecto
+            accent_color: 0xFF3B82F6, // Azul Crystal por defecto
         }
     }
 

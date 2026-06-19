@@ -15,7 +15,8 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y qemu-system-x86 nasm mtools ovmf
+          sudo apt-get install -y qemu-system-x86 nasm mtools ovmf python3-pip
+          pip3 install FATtools --break-system-packages
           rustup toolchain install nightly
           rustup default nightly
           rustup target add x86_64-unknown-none
