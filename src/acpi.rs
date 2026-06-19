@@ -1323,10 +1323,20 @@ impl AcpiManager {
         &self.thermal_info
     }
 
-    /// Actualizar información térmica
+    /// Actualizar información térmica (Hardware Awareness Real)
     pub fn update_thermal_info(&mut self) {
-        // En un sistema real, aquí se leería la temperatura de los sensores
-        // térmicos a través de ACPI
+        if let Some(ref aml) = self.aml_interpreter {
+            // FASE 3.2: Buscar objeto _TMP en la zona térmica
+            if let Some(AmlValue::Integer(temp_decikelvin)) = aml.get_value("_TMP") {
+                // ACPI entrega temperatura en décimas de Kelvin (e.g., 3000 = 26.85°C)
+                let temp_celsius = (*temp_decikelvin as f32 / 10.0) - 273.15;
+                self.thermal_info.cpu_temperature = temp_celsius;
+
+                if temp_celsius > 85.0 {
+                    crate::serial_println!("[ACPI] ALERTA: Temperatura crítica detectada: {:.2}°C", temp_celsius);
+                }
+            }
+        }
     }
 
     /// Cambiar estado de energía

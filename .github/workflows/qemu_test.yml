@@ -1,0 +1,57 @@
+name: CRONOS OS Headless CI
+
+on:
+  push:
+    branches: [ main, feature/**, evolve/** ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-x86 nasm mtools ovmf
+          rustup toolchain install nightly
+          rustup default nightly
+          rustup target add x86_64-unknown-none
+
+      - name: Build Kernel
+        run: make kernel
+
+      - name: Create Disk Image
+        run: make image
+
+      - name: Run QEMU Headless and Capture Logs
+        run: |
+          # Run QEMU for 30 seconds and capture serial output to a file
+          timeout 30s qemu-system-x86_64 \
+            -drive format=raw,file=cronos_w-os.img \
+            -m 1G \
+            -display none \
+            -serial file:qemu_serial_report.log \
+            -no-reboot || true
+
+          echo "--- QEMU SERIAL REPORT ---"
+          cat qemu_serial_report.log
+
+          # Check for PANIC in logs
+          if grep -q "PANIC" qemu_serial_report.log; then
+            echo "❌ Critical Error: Kernel Panic detected!"
+            exit 1
+          fi
+
+          if grep -q "FALLIDO" qemu_serial_report.log; then
+            echo "⚠️ Warning: System init reported failure."
+            exit 1
+          fi
+
+      - name: Upload Logs
+        uses: actions/upload-artifact@v3
+        with:
+          name: qemu-reports
+          path: qemu_serial_report.log

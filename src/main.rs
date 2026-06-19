@@ -314,6 +314,12 @@ pub fn kernel_main_impl(boot_info: &BootInfo) -> ! {
         }
         // FASE 2.5: Analizar eventos de instalación para auto-corrección neural
         hive.analyze_installer_events(&INSTALLER_LEDGER.lock());
+
+        // FASE 3.2: Vincular telemetría real de ACPI
+        acpi_manager.update_thermal_info();
+        let mut metrics = hive.current_metrics();
+        metrics.cpu_temp = acpi_manager.get_thermal_info().cpu_temperature;
+        hive.update_metrics(metrics);
     }
 
     if status {

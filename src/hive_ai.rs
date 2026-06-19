@@ -65,6 +65,7 @@ pub struct SystemMetrics {
     pub window_count: usize,
     pub graph_node_count: usize,
     pub graph_edge_count: usize,
+    pub cpu_temp: f32, // FASE 3.2: Telemetría real
 }
 
 impl Default for SystemMetrics {
@@ -79,6 +80,7 @@ impl Default for SystemMetrics {
             window_count: 0,
             graph_node_count: 0,
             graph_edge_count: 0,
+            cpu_temp: 45.0,
         }
     }
 }

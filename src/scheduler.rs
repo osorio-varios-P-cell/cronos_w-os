@@ -5,11 +5,13 @@
 
 use core::fmt;
 use alloc::vec::Vec;
+use alloc::vec;
 use alloc::string::String;
 use alloc::format;
 use alloc::collections::{BTreeMap, BTreeSet};
 use crate::capability::{Cell, CapabilityId, invoke_capability_mut};
 use crate::graph_kernel::{GraphKernel, NodeId};
+use crate::address_space::AddressSpace;
 
 /// Estado del proceso
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -117,21 +119,58 @@ pub struct Process {
     pub capabilities: BTreeSet<CapabilityId>,
     /// Nombre del proceso
     pub name: String,
+    /// Stack del proceso (para hilos del kernel)
+    pub stack: Vec<u8>,
+    /// Espacio de direcciones virtual (Aislamiento AEGIS)
+    pub address_space: Option<AddressSpace>,
     /// ID del nodo en el grafo que representa este proceso
     pub graph_node_id: Option<NodeId>,
 }
 
+/// Punto de entrada inicial para nuevos procesos del kernel
+extern "C" fn process_entry_stub() {
+    crate::serial_println!("[KERNEL] Proceso iniciado satisfactoriamente.");
+    loop {
+        x86_64::instructions::hlt();
+    }
+}
+
 impl Process {
     pub fn new(id: u64, name: String, priority: ProcessPriority) -> Self {
+        let stack_size = 4096 * 4; // 16KB stack
+        let mut stack = vec![0u8; stack_size];
+        let mut context = ProcessContext::default();
+
+        // Preparar el stack para el primer context_switch_asm
+        // El layout físico debe ser (de arriba a abajo): [RIP] [RBP] [RBX] [R12] [R13] [R14] [R15]
+        unsafe {
+            let stack_ptr = stack.as_mut_ptr().add(stack_size) as *mut u64;
+
+            // Colocamos el RIP (dirección de retorno para el 'ret' de context_switch_asm)
+            stack_ptr.offset(-1).write(process_entry_stub as *const () as u64);
+
+            // Colocamos los 6 registros callee-saved inicializados a 0
+            stack_ptr.offset(-2).write(0); // RBP
+            stack_ptr.offset(-3).write(0); // RBX
+            stack_ptr.offset(-4).write(0); // R12
+            stack_ptr.offset(-5).write(0); // R13
+            stack_ptr.offset(-6).write(0); // R14
+            stack_ptr.offset(-7).write(0); // R15
+
+            context.rsp = stack_ptr.offset(-7) as u64;
+        }
+
         Self {
             id,
             parent_id: None,
             state: ProcessState::Ready,
             priority,
-            context: ProcessContext::default(),
+            context,
             time_info: ProcessTime::default(),
             capabilities: BTreeSet::new(),
             name,
+            stack,
+            address_space: Some(AddressSpace::new(id as u32)),
             graph_node_id: None,
         }
     }
