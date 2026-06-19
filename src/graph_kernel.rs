@@ -125,6 +125,16 @@ pub enum EdgeType {
     Generic(String),
 }
 
+impl EdgeType {
+    /// Devuelve true si este tipo de arista debe formar un Grafo Acíclico Dirigido (DAG)
+    pub fn is_dag_constraint(&self) -> bool {
+        match self {
+            EdgeType::Ownership | EdgeType::Dependency | EdgeType::MemoryMapping => true,
+            _ => false,
+        }
+    }
+}
+
 /// A graph node representing a resource
 #[derive(Debug, Clone)]
 pub struct GraphNode {
@@ -208,6 +218,8 @@ pub struct ResourceGraph {
     pub edges: BTreeMap<EdgeId, GraphEdge>,
     pub adjacency_list: BTreeMap<NodeId, Vec<EdgeId>>,
     pub reverse_adjacency_list: BTreeMap<NodeId, Vec<EdgeId>>,
+    /// Límite de profundidad para búsquedas (Principio Exokernel: Acotado en tiempo)
+    pub max_search_depth: u32,
 }
 
 impl ResourceGraph {
@@ -217,6 +229,7 @@ impl ResourceGraph {
             edges: BTreeMap::new(),
             adjacency_list: BTreeMap::new(),
             reverse_adjacency_list: BTreeMap::new(),
+            max_search_depth: 32, // Límite razonable para evitar recursión infinita o lentitud
         }
     }
 
@@ -227,10 +240,17 @@ impl ResourceGraph {
         self.reverse_adjacency_list.insert(id, Vec::new());
     }
 
-    pub fn add_edge(&mut self, edge: GraphEdge) {
+    pub fn add_edge(&mut self, edge: GraphEdge) -> Result<(), &'static str> {
         let id = edge.id;
         let source = edge.source;
         let target = edge.target;
+
+        // Verificación de ciclo para tipos DAG (como Ownership)
+        if edge.edge_type.is_dag_constraint() {
+            if self.has_path(target, source, self.max_search_depth) {
+                return Err("Ciclo detectado en restricción DAG de recursos");
+            }
+        }
 
         self.edges.insert(id, edge);
         
@@ -243,6 +263,34 @@ impl ResourceGraph {
             .entry(target)
             .or_insert_with(Vec::new)
             .push(id);
+
+        Ok(())
+    }
+
+    /// Verifica si existe un camino entre source y target (Iterativo, acotado)
+    pub fn has_path(&self, start: NodeId, end: NodeId, max_depth: u32) -> bool {
+        if start == end { return true; }
+
+        let mut stack = Vec::new();
+        stack.push((start, 0));
+        let mut visited = BTreeSet::new();
+
+        while let Some((current, depth)) = stack.pop() {
+            if depth >= max_depth { continue; }
+            if !visited.insert(current) { continue; }
+
+            if let Some(edge_ids) = self.adjacency_list.get(&current) {
+                for eid in edge_ids {
+                    if let Some(edge) = self.edges.get(eid) {
+                        if edge.target == end {
+                            return true;
+                        }
+                        stack.push((edge.target, depth + 1));
+                    }
+                }
+            }
+        }
+        false
     }
 
     pub fn get_node(&self, node_id: NodeId) -> Option<&GraphNode> {
@@ -382,15 +430,19 @@ impl GraphKernel {
     }
 
     /// Create a new edge in the graph
-    pub fn create_edge(&self, source: NodeId, target: NodeId, edge_type: EdgeType) -> EdgeId {
+    pub fn create_edge(&self, source: NodeId, target: NodeId, edge_type: EdgeType) -> Option<EdgeId> {
         let edge = GraphEdge::new(source, target, edge_type);
         let edge_id = edge.id;
 
         invoke_capability_mut(&self.graph.capability(), |graph| {
-            graph.add_edge(edge);
-        });
-
-        edge_id
+            match graph.add_edge(edge) {
+                Ok(_) => Some(edge_id),
+                Err(e) => {
+                    crate::serial_println!("[GraphKernel] Error al crear arista: {}", e);
+                    None
+                }
+            }
+        }).flatten()
     }
 
     /// Get a node by ID
@@ -460,10 +512,13 @@ impl GraphKernel {
         }).flatten()
     }
 
-    /// Optimize the graph topology
+    /// Optimize the graph topology (Time-bounded for Exokernel safety)
     pub fn optimize_topology(&self) {
         // BUG #8 corregido: implementar optimización real del grafo
         invoke_capability_mut(&self.graph.capability(), |graph| {
+            let start_tick = get_kernel_tick();
+            let time_budget = 500; // ticks máximos para optimización
+
             // 1. Eliminar nodos aislados (sin aristas entrantes ni salientes)
             let isolated_nodes: Vec<NodeId> = graph
                 .nodes
@@ -480,6 +535,7 @@ impl GraphKernel {
                 if Some(node_id) != self.root_node {
                     graph.remove_node(node_id);
                 }
+                if get_kernel_tick() - start_tick > time_budget { return; }
             }
 
             // 2. Eliminar aristas redundantes (transitividad)
@@ -519,6 +575,7 @@ impl GraphKernel {
 
             for edge_id in redundant_edges {
                 graph.remove_edge(edge_id);
+                if get_kernel_tick() - start_tick > time_budget { return; }
             }
 
             // 3. Fusionar nodos duplicados (mismo tipo y nombre)
@@ -646,7 +703,8 @@ mod tests {
         let node1 = kernel.create_node(NodeType::MemoryRegion, String::from("mem1"));
         let node2 = kernel.create_node(NodeType::Process, String::from("proc1"));
         let edge_id = kernel.create_edge(node1, node2, EdgeType::DataFlow);
-        let edge = kernel.get_edge(edge_id);
+        assert!(edge_id.is_some());
+        let edge = kernel.get_edge(edge_id.unwrap());
         assert!(edge.is_some());
     }
 
@@ -659,5 +717,18 @@ mod tests {
         let neighbors = kernel.get_neighbors(node1);
         assert_eq!(neighbors.len(), 1);
         assert_eq!(neighbors[0], node2);
+    }
+
+    #[test]
+    fn test_dag_constraint() {
+        let kernel = GraphKernel::new();
+        let node1 = kernel.create_node(NodeType::MemoryRegion, String::from("mem1"));
+        let node2 = kernel.create_node(NodeType::Process, String::from("proc1"));
+
+        // Crear arista de propiedad node1 -> node2
+        assert!(kernel.create_edge(node1, node2, EdgeType::Ownership).is_some());
+
+        // Intentar crear arista de propiedad node2 -> node1 (Ciclo!)
+        assert!(kernel.create_edge(node2, node1, EdgeType::Ownership).is_none());
     }
 }

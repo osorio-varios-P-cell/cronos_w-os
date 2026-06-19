@@ -75,29 +75,38 @@ release:
 	@dd if=$(KERNEL_BIN) of=$(DISK_IMAGE) bs=512 seek=1 conv=notrunc status=progress
 	@echo "✅ Release compilado"
 
-# Ejecutar en QEMU con configuración avanzada
+# Ejecutar en QEMU con configuración avanzada (Q35, NVMe, Telemetría)
 qemu: image
-	@echo "�️ Iniciando CRONOS W-OS - Exokernel con Grafos en QEMU..."
+	@echo "🖥️ Iniciando CRONOS W-OS - Exokernel con Grafos en QEMU..."
 	@echo "🌐 Arquitectura: Exokernel + Grafos + IA Colmena + CronosOS"
 	$(QEMU) \
-		-drive format=raw,file=$(UNIVERSAL_IMAGE) \
+		-M q35 \
+		-cpu max \
 		-m 2G \
 		-smp 4 \
-		-cpu host \
+		-drive format=raw,file=$(UNIVERSAL_IMAGE),if=none,id=nvm \
+		-device nvme,serial=deadbeef,drive=nvm \
 		-device virtio-gpu-pci \
+		-display gtk,zoom-to-fit=on \
 		-serial stdio \
+		-device intel-hda -device hda-duplex \
 		-no-reboot
 
-# QEMU con debug avanzado
+# QEMU con debug avanzado (Logs de interrupciones y fallos)
 qemu-debug: image
 	@echo "🐛 Iniciando CRONOS W-OS en QEMU con debug avanzado..."
 	$(QEMU) \
-		-drive format=raw,file=$(UNIVERSAL_IMAGE) \
+		-M q35 \
+		-cpu max \
 		-m 2G \
 		-smp 4 \
-		-cpu host \
-		-s -S \
+		-drive format=raw,file=$(UNIVERSAL_IMAGE),if=none,id=nvm \
+		-device nvme,serial=deadbeef,drive=nvm \
+		-device virtio-gpu-pci \
 		-serial stdio \
+		-d int,guest_errors,pcall,cpu_reset \
+		-D qemu_debug_trace.txt \
+		-s -S \
 		-gdb tcp::1234
 
 # QEMU modo test

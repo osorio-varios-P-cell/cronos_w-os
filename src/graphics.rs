@@ -268,19 +268,46 @@ impl Framebuffer {
     pub fn buffer_mut(&mut self) -> &mut [u8] {
         &mut self.buffer
     }
+
+    /// Operación Blit: Copia un rectángulo de este framebuffer a otro
+    pub fn blit(&self, dest: &mut Framebuffer, src_rect: Rect, dest_point: Point) {
+        let bytes_per_pixel = (self.bpp() as u32) / 8;
+
+        for y in 0..src_rect.height {
+            let src_y = src_rect.y + y as i32;
+            let dest_y = dest_point.y + y as i32;
+
+            if src_y < 0 || src_y >= self.height() as i32 || dest_y < 0 || dest_y >= dest.height() as i32 {
+                continue;
+            }
+
+            let src_offset = (src_y as u32 * self.mode.pitch + src_rect.x as u32 * bytes_per_pixel) as usize;
+            let dest_offset = (dest_y as u32 * dest.mode.pitch + dest_point.x as u32 * bytes_per_pixel) as usize;
+            let line_width = (src_rect.width * bytes_per_pixel) as usize;
+
+            if src_offset + line_width <= self.buffer.len() && dest_offset + line_width <= dest.buffer.len() {
+                dest.buffer[dest_offset..dest_offset + line_width]
+                    .copy_from_slice(&self.buffer[src_offset..src_offset + line_width]);
+            }
+        }
+    }
 }
 
-/// Contexto gráfico
+/// Contexto gráfico con soporte para Doble Buffer
 pub struct GraphicsContext {
-    pub framebuffer: Framebuffer,
+    /// Buffer principal (oculto)
+    pub back_buffer: Framebuffer,
+    /// Referencia al buffer frontal (hardware/pantalla)
+    pub front_buffer_addr: *mut u8,
     pub draw_color: Color,
     pub fill_color: Color,
 }
 
 impl GraphicsContext {
-    pub fn new(framebuffer: Framebuffer) -> Self {
+    pub fn new(framebuffer: Framebuffer, front_buffer_addr: *mut u8) -> Self {
         Self {
-            framebuffer,
+            back_buffer: framebuffer,
+            front_buffer_addr,
             draw_color: Color::white(),
             fill_color: Color::black(),
         }
@@ -294,6 +321,20 @@ impl GraphicsContext {
         self.fill_color = color;
     }
 
+    /// Vuelca el back_buffer al front_buffer (pantalla)
+    pub fn swap_buffers(&mut self) {
+        if self.front_buffer_addr.is_null() { return; }
+
+        let size = self.back_buffer.buffer.len();
+        unsafe {
+            core::ptr::copy_nonoverlapping(
+                self.back_buffer.buffer.as_ptr(),
+                self.front_buffer_addr,
+                size
+            );
+        }
+    }
+
     pub fn draw_line(&mut self, x1: i32, y1: i32, x2: i32, y2: i32) {
         let dx = (x2 - x1).abs();
         let dy = (y2 - y1).abs();
@@ -305,7 +346,7 @@ impl GraphicsContext {
         let mut y = y1;
 
         loop {
-            self.framebuffer.set_pixel(x as u32, y as u32, self.draw_color);
+            self.back_buffer.set_pixel(x as u32, y as u32, self.draw_color);
 
             if x == x2 && y == y2 {
                 break;
@@ -338,7 +379,7 @@ impl GraphicsContext {
     pub fn fill_rect(&mut self, rect: Rect) {
         for y in rect.y..(rect.y + rect.height as i32) {
             for x in rect.x..(rect.x + rect.width as i32) {
-                self.framebuffer.set_pixel(x as u32, y as u32, self.fill_color);
+                self.back_buffer.set_pixel(x as u32, y as u32, self.fill_color);
             }
         }
     }
@@ -368,14 +409,14 @@ impl GraphicsContext {
         let mut err = 0;
 
         while x >= y {
-            self.framebuffer.set_pixel((cx + x) as u32, (cy + y) as u32, self.draw_color);
-            self.framebuffer.set_pixel((cx + y) as u32, (cy + x) as u32, self.draw_color);
-            self.framebuffer.set_pixel((cx - y) as u32, (cy + x) as u32, self.draw_color);
-            self.framebuffer.set_pixel((cx - x) as u32, (cy + y) as u32, self.draw_color);
-            self.framebuffer.set_pixel((cx - x) as u32, (cy - y) as u32, self.draw_color);
-            self.framebuffer.set_pixel((cx - y) as u32, (cy - x) as u32, self.draw_color);
-            self.framebuffer.set_pixel((cx + y) as u32, (cy - x) as u32, self.draw_color);
-            self.framebuffer.set_pixel((cx + x) as u32, (cy - y) as u32, self.draw_color);
+            self.back_buffer.set_pixel((cx + x) as u32, (cy + y) as u32, self.draw_color);
+            self.back_buffer.set_pixel((cx + y) as u32, (cy + x) as u32, self.draw_color);
+            self.back_buffer.set_pixel((cx - y) as u32, (cy + x) as u32, self.draw_color);
+            self.back_buffer.set_pixel((cx - x) as u32, (cy + y) as u32, self.draw_color);
+            self.back_buffer.set_pixel((cx - x) as u32, (cy - y) as u32, self.draw_color);
+            self.back_buffer.set_pixel((cx - y) as u32, (cy - x) as u32, self.draw_color);
+            self.back_buffer.set_pixel((cx + y) as u32, (cy - x) as u32, self.draw_color);
+            self.back_buffer.set_pixel((cx + x) as u32, (cy - y) as u32, self.draw_color);
 
             if err <= 0 {
                 y += 1;
@@ -395,7 +436,7 @@ impl GraphicsContext {
                 let dx = x - cx;
                 let dy = y - cy;
                 if dx * dx + dy * dy <= radius * radius {
-                    self.framebuffer.set_pixel(x as u32, y as u32, self.fill_color);
+                    self.back_buffer.set_pixel(x as u32, y as u32, self.fill_color);
                 }
             }
         }
@@ -414,7 +455,7 @@ impl GraphicsContext {
                 if byte_index < font_data.len() {
                     let byte = font_data[byte_index];
                     if (byte >> bit_index) & 1 == 1 {
-                        self.framebuffer.set_pixel((x + col as i32) as u32, (y + row as i32) as u32, self.draw_color);
+                        self.back_buffer.set_pixel((x + col as i32) as u32, (y + row as i32) as u32, self.draw_color);
                     }
                 }
             }
@@ -498,10 +539,10 @@ pub enum GraphicsError {
 impl fmt::Display for GraphicsError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            GraphicsError::InvalidMode => write!(f, "Invalid video mode"),
-            GraphicsError::InvalidAddress => write!(f, "Invalid framebuffer address"),
-            GraphicsError::BufferOverflow => write!(f, "Buffer overflow"),
-            GraphicsError::UnsupportedBpp => write!(f, "Unsupported bits per pixel"),
+            GraphicsError::InvalidMode => write!(f, "Modo de video inválido"),
+            GraphicsError::InvalidAddress => write!(f, "Dirección de framebuffer inválida"),
+            GraphicsError::BufferOverflow => write!(f, "Desbordamiento de buffer"),
+            GraphicsError::UnsupportedBpp => write!(f, "Bits por píxel no soportados"),
         }
     }
 }

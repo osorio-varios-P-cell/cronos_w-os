@@ -143,7 +143,8 @@ impl GpuDevice for RedoxGpuDriver {
     }
 
     fn swap_buffers(&mut self) -> Result<(), DeviceError> {
-        // TODO: Implement buffer swapping
+        // En una implementación real con hardware, esto dispararía el cambio de registro
+        // o esperaría al VSync. Aquí es un placeholder para la orquestación.
         Ok(())
     }
 
@@ -244,7 +245,25 @@ impl GpuDevice for RedoxGpuDriver {
                     }
                 }
             }
-            GpuCommand::Blit { .. } => {}
+            GpuCommand::Blit { src_x, src_y, dst_x, dst_y, width, height } => {
+                unsafe {
+                    let fb = self.framebuffer as *mut u32;
+                    for dy in 0..height {
+                        for dx in 0..width {
+                            let sx = src_x + dx;
+                            let sy = src_y + dy;
+                            let dx_pos = dst_x + dx;
+                            let dy_pos = dst_y + dy;
+
+                            if sx < self.width && sy < self.height && dx_pos < self.width && dy_pos < self.height {
+                                let src_offset = (sy * self.width + sx) as usize;
+                                let dst_offset = (dy_pos * self.width + dx_pos) as usize;
+                                *fb.add(dst_offset) = *fb.add(src_offset);
+                            }
+                        }
+                    }
+                }
+            }
         }
         Ok(())
     }

@@ -82,6 +82,12 @@ pub fn init_pics() {
 extern "x86-interrupt" fn divide_error_handler(stack_frame: InterruptStackFrame) {
     crate::serial_println!("DIVIDE ERROR");
     crate::serial_println!("IP: {:#x}", stack_frame.instruction_pointer.as_u64());
+    unsafe {
+        if let Some(ref mut hive) = crate::HIVE_AI_INSTANCE {
+            let reason = hive.perform_fable_reasoning("DIVIDE_BY_ZERO detected. Analyze root cause.");
+            crate::serial_println!("Hive AI Analysis: {}", reason);
+        }
+    }
     loop {}
 }
 
@@ -133,9 +139,17 @@ extern "x86-interrupt" fn device_not_available_handler(stack_frame: InterruptSta
 }
 
 extern "x86-interrupt" fn double_fault_handler(stack_frame: InterruptStackFrame, error_code: u64) -> ! {
-    crate::serial_println!("DOUBLE FAULT");
+    crate::serial_println!("--- CRÍTICO: DOUBLE FAULT ---");
     crate::serial_println!("Error Code: {:#x}", error_code);
     crate::serial_println!("IP: {:#x}", stack_frame.instruction_pointer.as_u64());
+    dump_registers();
+    unsafe {
+        if let Some(ref mut hive) = crate::HIVE_AI_INSTANCE {
+            let report = alloc::format!("DOUBLE_FAULT IP:{:#x} EC:{}", stack_frame.instruction_pointer.as_u64(), error_code);
+            let analysis = hive.analyze_installation_failure(&report);
+            crate::serial_println!("Hive AI Neural Diagnostic: {}", analysis);
+        }
+    }
     loop {}
 }
 
@@ -160,20 +174,54 @@ extern "x86-interrupt" fn stack_segment_fault_handler(stack_frame: InterruptStac
     loop {}
 }
 
+fn dump_registers() {
+    unsafe {
+        let rax: u64; let rbx: u64; let rcx: u64; let rdx: u64;
+        let rsi: u64; let rdi: u64; let rbp: u64; let rsp: u64;
+        core::arch::asm!("mov {}, rax", out(reg) rax);
+        core::arch::asm!("mov {}, rbx", out(reg) rbx);
+        core::arch::asm!("mov {}, rcx", out(reg) rcx);
+        core::arch::asm!("mov {}, rdx", out(reg) rdx);
+        core::arch::asm!("mov {}, rsi", out(reg) rsi);
+        core::arch::asm!("mov {}, rdi", out(reg) rdi);
+        core::arch::asm!("mov {}, rbp", out(reg) rbp);
+        core::arch::asm!("mov {}, rsp", out(reg) rsp);
+        crate::serial_println!("RAX: {:#018x} RBX: {:#018x}", rax, rbx);
+        crate::serial_println!("RCX: {:#018x} RDX: {:#018x}", rcx, rdx);
+        crate::serial_println!("RSI: {:#018x} RDI: {:#018x}", rsi, rdi);
+        crate::serial_println!("RBP: {:#018x} RSP: {:#018x}", rbp, rsp);
+    }
+}
+
 extern "x86-interrupt" fn general_protection_fault_handler(stack_frame: InterruptStackFrame, error_code: u64) {
-    crate::serial_println!("GENERAL PROTECTION FAULT");
+    crate::serial_println!("--- EXCEPCIÓN: GENERAL PROTECTION FAULT ---");
     crate::serial_println!("Error Code: {:#x}", error_code);
     crate::serial_println!("IP: {:#x}", stack_frame.instruction_pointer.as_u64());
+    dump_registers();
+    unsafe {
+        if let Some(ref mut hive) = crate::HIVE_AI_INSTANCE {
+            let analysis = hive.perform_fable_reasoning("GPF Exception. Possible privilege violation or invalid segment access.");
+            crate::serial_println!("Hive AI Analysis: {}", analysis);
+        }
+    }
     loop {}
 }
 
 extern "x86-interrupt" fn page_fault_handler(stack_frame: InterruptStackFrame, error_code: PageFaultErrorCode) {
     let cr2: u64;
     unsafe { core::arch::asm!("mov {}, cr2", out(reg) cr2) };
-    crate::serial_println!("PAGE FAULT");
+    crate::serial_println!("--- EXCEPCIÓN: PAGE FAULT ---");
     crate::serial_println!("Error Code: {:?}", error_code);
-    crate::serial_println!("CR2 (fault addr): {:#x}", cr2);
+    crate::serial_println!("CR2 (dirección errónea): {:#x}", cr2);
     crate::serial_println!("IP: {:#x}", stack_frame.instruction_pointer.as_u64());
+    dump_registers();
+    unsafe {
+        if let Some(ref mut hive) = crate::HIVE_AI_INSTANCE {
+            let report = alloc::format!("PAGE_FAULT at {:#x} EC:{:?} IP:{:#x}", cr2, error_code, stack_frame.instruction_pointer.as_u64());
+            let analysis = hive.analyze_installation_failure(&report);
+            crate::serial_println!("Hive AI Analysis: {}", analysis);
+        }
+    }
     loop {}
 }
 

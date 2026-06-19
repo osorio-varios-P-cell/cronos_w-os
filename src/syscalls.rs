@@ -288,7 +288,7 @@ impl SyscallHandler {
             let edge_type = EdgeType::Generic(String::from("syscall_edge"));
             let edge_id = invoke_capability_mut(&graph_kernel.capability(), |gk| {
                 gk.create_edge(from, to, edge_type)
-            });
+            }).flatten();
             match edge_id {
                 Some(eid) => SyscallResult::success(eid.0),
                 None => SyscallResult::error(2),

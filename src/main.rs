@@ -54,6 +54,9 @@ lazy_static! {
     pub static ref SCHEDULER: Mutex<Scheduler> = Mutex::new(Scheduler::new(scheduler::SchedulerConfig::default()));
 }
 
+// Global mutable state for Hive AI (since Mutex<HiveAi> had Send/Sync issues with intrusive pointers)
+pub static mut HIVE_AI_INSTANCE: Option<HiveAi> = None;
+
 // Exportar funciones y tipos para boot.rs
 pub use crate::serial_writer::{serial_print_hex, serial_print_dec, serial_panic};
 pub use crate::serial_writer::SERIAL_WRITER;
@@ -300,10 +303,10 @@ pub fn kernel_main_impl(boot_info: &BootInfo) -> ! {
 
     let fb_info = boot_info.framebuffer.clone();
     
-    let (status, graph_kernel, layer_arch, lumen_layer, mut hive_ai) = initialize_system_with_graph_and_layers(fb_info.as_ref());
+    let (status, graph_kernel, layer_arch, lumen_layer, hive_ai_opt) = initialize_system_with_graph_and_layers(fb_info.as_ref());
 
     // Initialize ALL Hive AI subsystems
-    if let Some(ref mut hive) = hive_ai {
+    if let Some(mut hive) = hive_ai_opt {
         let _ = hive.initialize_broker(1);
         let _ = hive.initialize_agent_manager();
         hive.initialize_swarm();
@@ -314,6 +317,8 @@ pub fn kernel_main_impl(boot_info: &BootInfo) -> ! {
         }
         // FASE 2.5: Analizar eventos de instalación para auto-corrección neural
         hive.analyze_installer_events(&INSTALLER_LEDGER.lock());
+
+        unsafe { HIVE_AI_INSTANCE = Some(hive); }
     }
 
     if status {

@@ -620,12 +620,13 @@ impl LayerArchitecture {
             self.layers.get(&from).and_then(|l| l.root_node),
             self.layers.get(&to).and_then(|l| l.root_node),
         ) {
-            let edge_id = self.graph_kernel.create_edge(
+            if let Some(edge_id) = self.graph_kernel.create_edge(
                 from_layer,
                 to_layer,
                 EdgeType::ControlFlow,
-            );
-            self.layer_edges.insert((from, to), edge_id);
+            ) {
+                self.layer_edges.insert((from, to), edge_id);
+            }
         }
     }
 
