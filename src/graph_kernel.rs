@@ -158,7 +158,7 @@ impl GraphNode {
             metadata: BTreeMap::new(),
             capabilities: BTreeSet::new(),
             created_at: get_kernel_tick(), // BUG #9 corregido: usar KERNEL_TICK real
-            quota_max: 1000, // Valor por defecto
+            quota_max: 10000, // Valor por defecto aumentado para evitar fallos tempranos
             quota_used: 0,
         }
     }

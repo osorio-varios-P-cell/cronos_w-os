@@ -184,7 +184,7 @@ impl VideoMode {
     }
 
     pub fn size(&self) -> usize {
-        (self.width * self.height * (self.bpp as u32) / 8) as usize
+        (self.height * self.pitch) as usize
     }
 }
 
