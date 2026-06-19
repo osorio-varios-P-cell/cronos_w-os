@@ -127,14 +127,6 @@ pub struct Process {
     pub graph_node_id: Option<NodeId>,
 }
 
-/// Punto de entrada inicial para nuevos procesos del kernel
-extern "C" fn process_entry_stub() {
-    crate::serial_println!("[KERNEL] Proceso iniciado satisfactoriamente.");
-    loop {
-        x86_64::instructions::hlt();
-    }
-}
-
 impl Process {
     pub fn new(id: u64, name: String, priority: ProcessPriority) -> Self {
         let stack_size = 4096 * 4; // 16KB stack
@@ -142,23 +134,22 @@ impl Process {
         let mut context = ProcessContext::default();
 
         // Preparar el stack para el primer context_switch_asm
-        // El layout físico debe ser (de arriba a abajo): [RIP] [RBP] [RBX] [R12] [R13] [R14] [R15]
-        unsafe {
-            let stack_ptr = stack.as_mut_ptr().add(stack_size) as *mut u64;
+        // El layout debe coincidir con lo que context_switch_asm espera:
+        // [rsp] -> r15
+        // [rsp + 8] -> r14
+        // ...
+        // [rsp + 48] -> rbp
+        // [rsp + 56] -> rip (donde empezará a ejecutar)
 
-            // Colocamos el RIP (dirección de retorno para el 'ret' de context_switch_asm)
-            stack_ptr.offset(-1).write(process_entry_stub as *const () as u64);
+        let stack_top = stack.as_mut_ptr() as u64 + stack_size as u64;
+        let mut rsp = stack_top;
 
-            // Colocamos los 6 registros callee-saved inicializados a 0
-            stack_ptr.offset(-2).write(0); // RBP
-            stack_ptr.offset(-3).write(0); // RBX
-            stack_ptr.offset(-4).write(0); // R12
-            stack_ptr.offset(-5).write(0); // R13
-            stack_ptr.offset(-6).write(0); // R14
-            stack_ptr.offset(-7).write(0); // R15
+        // Reservar espacio para los 6 registros pushados en asm (rbp, rbx, r12, r13, r14, r15) + rip
+        rsp -= 8 * 7;
 
-            context.rsp = stack_ptr.offset(-7) as u64;
-        }
+        context.rsp = rsp;
+        // rip se configuraría al cargar un binario, por ahora apunta a un stub nulo
+        context.rip = 0;
 
         Self {
             id,
