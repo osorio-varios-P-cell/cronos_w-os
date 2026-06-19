@@ -29,10 +29,11 @@ jobs:
 
       - name: Run QEMU Headless and Capture Logs
         run: |
-          # Run QEMU for 30 seconds and capture serial output to a file
-          timeout 30s qemu-system-x86_64 \
+          # Run QEMU with UEFI support and capture serial output
+          timeout 60s qemu-system-x86_64 \
+            -bios /usr/share/ovmf/OVMF.fd \
             -drive format=raw,file=cronos_w-os.img \
-            -m 1G \
+            -m 2G \
             -display none \
             -serial file:qemu_serial_report.log \
             -no-reboot || true

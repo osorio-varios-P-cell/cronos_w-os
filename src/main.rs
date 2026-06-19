@@ -267,9 +267,8 @@ pub fn kernel_main_impl(boot_info: &BootInfo) -> ! {
         core::arch::asm!("mov {cs}, cs", cs = out(reg) cs);
         crate::serial_println!("kernel_main: registro CS = {:#x}", cs);
     }
-    crate::serial_println!("kernel_main: habilitando interrupciones");
-    x86_64::instructions::interrupts::enable();
-    crate::serial_println!("kernel_main: ¡interrupciones habilitadas!");
+    // Las interrupciones se habilitarán al final, después de inicializar memoria y drivers
+    crate::serial_println!("kernel_main: interrupciones deshabilitadas temporalmente durante el arranque");
     
     // Heap despues de GDT/IDT para manejo de excepciones
     crate::serial_println!("kernel_main: iniciando asignador de memoria");
@@ -488,6 +487,10 @@ pub fn kernel_main_impl(boot_info: &BootInfo) -> ! {
 
     serial_println!("Estado de inicio del sistema: {}", if status { "OK" } else { "FALLIDO" });
     serial_println!("Dispositivos PCI: {}", pci_devices.len());
+
+    // Habilitar interrupciones ahora que el sistema está listo
+    crate::serial_println!("kernel_main: habilitando interrupciones (Sovereign Entry)");
+    x86_64::instructions::interrupts::enable();
 
     use crate::interrupts::pop_scancode;
     use crate::ps2::scancode_to_char;

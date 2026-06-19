@@ -143,10 +143,10 @@ extern "x86-interrupt" fn double_fault_handler(stack_frame: InterruptStackFrame,
     crate::serial_println!("Error Code: {:#x}", error_code);
     crate::serial_println!("IP: {:#x}", stack_frame.instruction_pointer.as_u64());
     dump_registers();
+    // Evitamos allocación dinámica en fallos críticos para prevenir deadlocks
     unsafe {
         if let Some(ref mut hive) = crate::HIVE_AI_INSTANCE {
-            let report = alloc::format!("DOUBLE_FAULT IP:{:#x} EC:{}", stack_frame.instruction_pointer.as_u64(), error_code);
-            let analysis = hive.analyze_installation_failure(&report);
+            let analysis = hive.analyze_installation_failure("DOUBLE_FAULT_CRITICAL");
             crate::serial_println!("Hive AI Neural Diagnostic: {}", analysis);
         }
     }
@@ -217,8 +217,7 @@ extern "x86-interrupt" fn page_fault_handler(stack_frame: InterruptStackFrame, e
     dump_registers();
     unsafe {
         if let Some(ref mut hive) = crate::HIVE_AI_INSTANCE {
-            let report = alloc::format!("PAGE_FAULT at {:#x} EC:{:?} IP:{:#x}", cr2, error_code, stack_frame.instruction_pointer.as_u64());
-            let analysis = hive.analyze_installation_failure(&report);
+            let analysis = hive.analyze_installation_failure("PAGE_FAULT_MEM_VIOLATION");
             crate::serial_println!("Hive AI Analysis: {}", analysis);
         }
     }

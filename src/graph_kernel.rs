@@ -252,7 +252,9 @@ impl ResourceGraph {
 
         // 1. Verificación de cuota (Genode Principle)
         if let Some(source_node) = self.nodes.get_mut(&source) {
-            if source_node.quota_used >= source_node.quota_max {
+            // No aplicar cuotas restrictivas al nodo raíz durante el arranque
+            if source_node.node_type != NodeType::KernelRoot && source_node.quota_used >= source_node.quota_max {
+                crate::serial_println!("[GraphKernel] ALERTA: Cuota agotada para nodo '{}' ({:?})", source_node.name, source);
                 return Err("Cuota de recursos agotada para el nodo origen");
             }
             source_node.quota_used += 1;
