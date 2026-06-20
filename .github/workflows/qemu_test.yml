@@ -38,17 +38,24 @@ jobs:
         run: make kernel
 
       - name: Create Disk Image
-        run: make image
+        run: |
+          # Ajustar resolución para modo Headless (Garantizar compatibilidad VESA)
+          sed -i 's/framebuffer_width: 1024/framebuffer_width: 800/' limine.conf
+          sed -i 's/framebuffer_height: 768/framebuffer_height: 600/' limine.conf
+          make image
 
       - name: Run QEMU Headless and Capture Logs
         run: |
-          # Buscar la ruta de OVMF dinámicamente
-          OVMF_PATH=$(find /usr/share -name "OVMF.fd" | head -n 1)
-          if [ -z "$OVMF_PATH" ]; then OVMF_PATH=$(find /usr/share -name "OVMF_CODE.fd" | head -n 1); fi
+          # Buscar la ruta de OVMF dinámicamente en múltiples rutas posibles de Ubuntu
+          OVMF_PATH=$(find /usr/share -name "OVMF.fd" -o -name "OVMF_CODE.fd" | head -n 1)
+          if [ -z "$OVMF_PATH" ]; then
+            OVMF_PATH="/usr/share/ovmf/OVMF.fd"
+            if [ ! -f "$OVMF_PATH" ]; then OVMF_PATH="/usr/share/OVMF/OVMF_CODE.fd"; fi
+          fi
           echo "Using OVMF at: $OVMF_PATH"
 
           # Ejecutar QEMU con TCG y mayor timeout (300s) para asegurar validación IA
-          # Eliminamos -accel tcg por compatibilidad de argumentos y usamos -cpu qemu64
+          # Redirigimos salida a la vez que la mostramos para evitar suspensiones por inactividad
           timeout 300s qemu-system-x86_64 \
             -cpu qemu64 \
             -bios "$OVMF_PATH" \
@@ -56,7 +63,7 @@ jobs:
             -m 2G \
             -display none \
             -serial stdio \
-            -no-reboot > qemu_serial_report.log 2>&1 || true
+            -no-reboot 2>&1 | tee qemu_serial_report.log || true
 
           echo "--- QEMU SERIAL REPORT ---"
           cat qemu_serial_report.log
