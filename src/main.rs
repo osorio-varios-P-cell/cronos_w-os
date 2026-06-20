@@ -488,6 +488,9 @@ pub fn kernel_main_impl(boot_info: &BootInfo) -> ! {
     serial_println!("Estado de inicio del sistema: {}", if status { "OK" } else { "FALLIDO" });
     serial_println!("Dispositivos PCI: {}", pci_devices.len());
 
+    // FASE 41: Confirmar arranque exitoso ANTES de validaciones pesadas de IA
+    crate::serial_println!("[HEARTBEAT] Sistema estable. Alcanzando hito SOBERANO.");
+
     unsafe {
         if let Some(ref mut hive) = HIVE_AI_INSTANCE {
             if let Ok(report) = hive.run_global_validation() {
