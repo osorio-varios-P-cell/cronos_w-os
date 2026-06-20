@@ -5,9 +5,14 @@ impl Ps2Keyboard {
         unsafe {
             Self::write_command(0xAD);
             Self::write_command(0xA7);
-            while (Self::read_status() & 0x01) != 0 {
+
+            // Timeout de seguridad para evitar cuelgues en CI
+            let mut timeout = 0x10000;
+            while (Self::read_status() & 0x01) != 0 && timeout > 0 {
                 let _ = Self::read_data();
+                timeout -= 1;
             }
+
             Self::write_command(0x20);
             let mut ccb = Self::read_data();
             ccb |= 0x01;

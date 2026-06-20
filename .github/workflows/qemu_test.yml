@@ -47,10 +47,10 @@ jobs:
           if [ -z "$OVMF_PATH" ]; then OVMF_PATH=$(find /usr/share -name "OVMF_CODE.fd" | head -n 1); fi
           echo "Using OVMF at: $OVMF_PATH"
 
-          # Ejecutar QEMU con TCG (software acceleration) para runners de CI
-          # Aumentamos a 180s para permitir el razonamiento de IA en modo emulado
-          timeout 180s qemu-system-x86_64 \
-            -accel tcg \
+          # Ejecutar QEMU con TCG y mayor timeout (300s) para asegurar validación IA
+          # Eliminamos -accel tcg por compatibilidad de argumentos y usamos -cpu qemu64
+          timeout 300s qemu-system-x86_64 \
+            -cpu qemu64 \
             -bios "$OVMF_PATH" \
             -drive format=raw,file=cronos_w-os.img \
             -m 2G \
