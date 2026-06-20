@@ -31,8 +31,17 @@ impl XhciController {
             usbcmd |= 0x02;
             write_volatile((op_base + 0x00) as *mut u32, usbcmd);
 
-            // Esperar a que el reset termine
-            while (read_volatile((op_base + 0x00) as *const u32) & 0x02) != 0 {}
+            // Esperar a que el reset termine con timeout
+            let mut timeout = 0x100000;
+            while (read_volatile((op_base + 0x00) as *const u32) & 0x02) != 0 && timeout > 0 {
+                timeout -= 1;
+                core::hint::spin_loop();
+            }
+
+            if timeout == 0 {
+                crate::serial_println!("[xHCI] ERROR: Timeout durante reset del controlador");
+                return Err(String::from("Timeout en reset de xHCI"));
+            }
 
             // 2. Configurar Max Device Slots
             let cap_params1 = read_volatile((self.base_addr + 0x04) as *const u32);

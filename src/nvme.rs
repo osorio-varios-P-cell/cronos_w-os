@@ -66,9 +66,18 @@ impl NvmeController {
             self.max_queues = ((cap >> 16) & 0xFFFF) as u16;
             self.doorbell_stride = 1 << (2 + ((cap >> 32) & 0xF) as u32);
 
-            // 2. Reset del controlador
+            // 2. Reset del controlador con timeout de seguridad
             self.write_reg32(0x14, 0); // CC.EN = 0
-            while (self.read_reg32(0x1C) & 0x01) != 0 {} // Esperar CSTS.RDY == 0
+            let mut timeout = 0x100000;
+            while (self.read_reg32(0x1C) & 0x01) != 0 && timeout > 0 {
+                timeout -= 1;
+                core::hint::spin_loop();
+            }
+
+            if timeout == 0 {
+                crate::serial_println!("[NVMe] ERROR: Timeout esperando CSTS.RDY == 0");
+                return Err(String::from("Timeout en reset de NVMe"));
+            }
 
             // 3. Configurar colas de administración (Admin Queues)
             // Aquí deberíamos asignar memoria física real.
@@ -87,8 +96,17 @@ impl NvmeController {
             // MPS=0 (4KB), CSS=0 (NVM), AMS=0 (RR)
             self.write_reg32(0x14, 0x00460001);
 
-            // Esperar a Ready (CSTS.RDY == 1)
-            while (self.read_reg32(0x1C) & 0x01) == 0 {}
+            // Esperar a Ready (CSTS.RDY == 1) con timeout
+            let mut timeout = 0x100000;
+            while (self.read_reg32(0x1C) & 0x01) == 0 && timeout > 0 {
+                timeout -= 1;
+                core::hint::spin_loop();
+            }
+
+            if timeout == 0 {
+                crate::serial_println!("[NVMe] ERROR: Timeout esperando CSTS.RDY == 1");
+                return Err(String::from("Timeout en activación de NVMe"));
+            }
         }
 
         self.enabled = true;
