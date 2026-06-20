@@ -48,8 +48,8 @@ jobs:
           echo "Using OVMF at: $OVMF_PATH"
 
           # Ejecutar QEMU con TCG (software acceleration) para runners de CI
-          # Usamos -device isa-debug-exit para control de salida
-          timeout 120s qemu-system-x86_64 \
+          # Aumentamos a 180s para permitir el razonamiento de IA en modo emulado
+          timeout 180s qemu-system-x86_64 \
             -accel tcg \
             -bios "$OVMF_PATH" \
             -drive format=raw,file=cronos_w-os.img \
